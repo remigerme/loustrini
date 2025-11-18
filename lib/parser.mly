@@ -1,5 +1,4 @@
 %{
-
   open Asttypes
   open Parse_ast
 
@@ -62,7 +61,7 @@
 %nonassoc NOT PRE                             /* not pre */
 %left DOT
 
-/* Point d'entrée */
+/* Point d'entrï¿½e */
 
 %start file
 %type <Parse_ast.p_file> file

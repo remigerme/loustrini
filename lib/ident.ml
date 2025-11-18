@@ -1,25 +1,14 @@
-type t =
-    { id: int;
-      name: string;
-      kind: kind; }
-
-and kind =
-  | Stream
-  | Node
-  | Prim
+type t = { id : int; name : string; kind : kind }
+and kind = Stream | Node | Prim
 
 let make =
   let cpt = ref 0 in
   fun s kind ->
     incr cpt;
-    { id = !cpt;
-      name = s;
-      kind = kind; }
+    { id = !cpt; name = s; kind }
 
-let compare = Pervasives.compare
-
-let print fmt x =
-  Format.fprintf fmt "%s__%i" x.name x.id
+let compare = Stdlib.compare
+let print fmt x = Format.fprintf fmt "%s__%i" x.name x.id
 
 (* Utils *)
 let print_to_string print x =
@@ -29,4 +18,3 @@ let print_to_string print x =
   Format.flush_str_formatter ()
 
 let string_of x = print_to_string print x
-
