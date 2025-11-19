@@ -14,16 +14,16 @@ We need to install the following dependencies:
 
 ### Creating a switch
 
-Create an opam switch using OCaml 5.3.0:
+Create an opam switch using OCaml 4.14.2:
 
 ```shell
-opam switch create 5.3.0
+opam switch create loustrini 4.14.2
 ```
 
 Don't forget to activate the switch:
 
 ```shell
-eval $(opam env --switch=5.3.0)
+eval $(opam env --switch=loustrini)
 ```
 
 ### Installing dependencies
@@ -34,10 +34,10 @@ This project uses the dune build system:
 opam install dune
 ```
 
-Instead of Alt-Ergo Zero, Loustrini relies on [Smt.ml](https://github.com/formalsec/smtml) to manage SMT solvers:
+And the Alt-Ergo Zero SMT solver:
 
 ```shell
-opam install smtml
+opam install aez
 ```
 
 ### Building and running
@@ -51,7 +51,7 @@ dune build
 and run it with:
 
 ```shell
-dune exec ./bin/loustrini file.lus node
+dune exec ./bin/loustrini.exe file.lus node
 ```
 
 ### Building the report
