@@ -3,5 +3,5 @@
  (libraries last))
 
 (executable
- (name example)
+ (name incr)
  (libraries last aez))
