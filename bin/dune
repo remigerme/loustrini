@@ -1,7 +1,7 @@
 (executable
  (name loustrini)
- (libraries llib))
+ (libraries last))
 
 (executable
  (name example)
- (libraries llib aez))
+ (libraries last aez))

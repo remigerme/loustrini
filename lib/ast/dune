@@ -3,4 +3,4 @@
 (ocamlyacc parser)
 
 (library
- (name llib))
+ (name last))
