@@ -4,4 +4,4 @@
 
 (executable
  (name incr)
- (libraries last aez))
+ (libraries last z3))

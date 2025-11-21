@@ -7,17 +7,17 @@ A Lustre model-checker using the H-Houdini invariant learning algorithm [1].
 We need to install the following dependencies:
 
 - dune
-- smtml
+- z3
 - (optional) ocaml-lsp-server when developing
 - (optional) ocamlformat when developing
 - (optional) typst to build the report
 
 ### Creating a switch
 
-Create an opam switch using OCaml 4.14.2:
+Create an opam switch using OCaml 5.3.0:
 
 ```shell
-opam switch create loustrini 4.14.2
+opam switch create loustrini 5.3.0
 ```
 
 Don't forget to activate the switch:
@@ -34,10 +34,10 @@ This project uses the dune build system:
 opam install dune
 ```
 
-And the Alt-Ergo Zero SMT solver:
+And the Z3 SMT solver OCaml bindings:
 
 ```shell
-opam install aez
+opam install z3
 ```
 
 ### Building and running

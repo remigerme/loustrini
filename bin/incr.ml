@@ -1,96 +1,84 @@
-(* From https://www.di.ens.fr/~pouzet/cours/mpri/projet/incr_proof.ml *)
+(* Manual OCaml equivalent of file:///./../examples/incr.smt2 using Z3 bindings. *)
 
-open Aez
-open Smt
+open Z3
 
-let declare_symbol name t_in t_out =
-  (* création d'un symbole *)
-  let x = Hstring.make name in
-  (* déclaration de son type *)
-  Symbol.declare x t_in t_out;
-  x
-
-let tic = declare_symbol "tic" [ Type.type_int ] Type.type_bool
-let ok = declare_symbol "ok" [ Type.type_int ] Type.type_bool
-let cpt = declare_symbol "cpt" [ Type.type_int ] Type.type_int
-let aux = declare_symbol "aux" [ Type.type_int ] Type.type_bool
-let zero = Term.make_int (Num.Int 0) (* constante 0 *)
-let one = Term.make_int (Num.Int 1) (* constante 1 *)
-
-let def_cpt n =
-  (* cpt(n) = ite(n = 0, 0, cpt(n-1)) + ite(tic(n), 1, 0) *)
-  let ite1 =
-    (* ite(n = 0, 0, cpt(n-1)) *)
-    Term.make_ite
-      (Formula.make_lit Formula.Eq [ n; zero ])
-      zero
-      (Term.make_app cpt [ Term.make_arith Term.Minus n one ])
-  in
-  let ite2 =
-    (* ite(tic(n), 1, 0) *)
-    Term.make_ite
-      (Formula.make_lit Formula.Eq [ Term.make_app tic [ n ]; Term.t_true ])
-      one zero
-  in
-  (* cpt(n) = ite1 + ite2 *)
-  Formula.make_lit Formula.Eq
-    [ Term.make_app cpt [ n ]; Term.make_arith Term.Plus ite1 ite2 ]
-
-let def_ok n =
-  (* ok(n) = ite(n = 0, true, aux(n)) *)
-  Formula.make_lit Formula.Eq
-    [
-      Term.make_app ok [ n ];
-      Term.make_ite
-        (Formula.make_lit Formula.Eq [ n; zero ])
-        Term.t_true (Term.make_app aux [ n ]);
-    ]
-
-let def_aux n =
-  let aux_n =
-    (* aux(n) = true *)
-    Formula.make_lit Formula.Eq [ Term.make_app aux [ n ]; Term.t_true ]
-  in
-  let pre_cpt_le_cpt =
-    (* cpt(n-1) <= cpt(n) *)
-    Formula.make_lit Formula.Le
-      [
-        Term.make_app cpt [ Term.make_arith Term.Minus n one ];
-        Term.make_app cpt [ n ];
-      ]
-  in
-  Formula.make Formula.And
-    [
-      Formula.make Formula.Imp [ aux_n; pre_cpt_le_cpt ];
-      Formula.make Formula.Imp [ pre_cpt_le_cpt; aux_n ];
-    ]
-
-let delta_incr n = Formula.make Formula.And [ def_cpt n; def_ok n; def_aux n ]
-
-let p_incr n =
-  Formula.make_lit Formula.Eq [ Term.make_app ok [ n ]; Term.t_true ]
-
-module BMC_solver = Smt.Make (struct end)
-module IND_solver = Smt.Make (struct end)
-
-let base =
-  BMC_solver.assume ~id:0 (delta_incr zero);
-  BMC_solver.assume ~id:0 (delta_incr one);
-  BMC_solver.check ();
-  BMC_solver.entails ~id:0
-    (Formula.make Formula.And [ p_incr zero; p_incr one ])
-
-let ind =
-  let n = Term.make_app (declare_symbol "n" [] Type.type_int) [] in
-  let n_plus_one = Term.make_arith Term.Plus n one in
-  IND_solver.assume ~id:0 (Formula.make_lit Formula.Le [ zero; n ]);
-  IND_solver.assume ~id:0 (delta_incr n);
-  IND_solver.assume ~id:0 (delta_incr n_plus_one);
-  IND_solver.assume ~id:0 (p_incr n);
-  IND_solver.check ();
-  IND_solver.entails ~id:0 (p_incr n_plus_one)
+let declare_symbol ctx name sort =
+  let sym = Symbol.mk_string ctx name in
+  Expr.mk_const ctx sym sort
 
 let () =
-  if not base then Format.printf "FALSE PROPERTY"
-  else if ind then Format.printf "TRUE PROPERTY"
-  else Format.printf "Don't know"
+  let ctx = mk_context [] in
+  let solver = Solver.mk_solver ctx None in
+
+  let int_sort = Arithmetic.Integer.mk_sort ctx in
+  let bool_sort = Boolean.mk_sort ctx in
+
+  (* Declare functions *)
+  let tic = FuncDecl.mk_func_decl_s ctx "tic" [ int_sort ] bool_sort in
+  let aux = FuncDecl.mk_func_decl_s ctx "aux" [ int_sort ] bool_sort in
+  let cpt = FuncDecl.mk_func_decl_s ctx "cpt" [ int_sort ] int_sort in
+
+  (* Constants *)
+  let zero = Arithmetic.Integer.mk_numeral_i ctx 0 in
+  let one = Arithmetic.Integer.mk_numeral_i ctx 1 in
+
+  (* Define recursive function cpt using quantifier *)
+  (* For all n: cpt(n) = if n = 0 then 0 else cpt(n-1) + (if tic(n) then 1 else 0) *)
+  let n_var = declare_symbol ctx "n" int_sort in
+
+  let cpt_n = FuncDecl.apply cpt [ n_var ] in
+  let cpt_n_minus_1 =
+    FuncDecl.apply cpt [ Arithmetic.mk_sub ctx [ n_var; one ] ]
+  in
+  let tic_n = FuncDecl.apply tic [ n_var ] in
+  let ite_tic = Boolean.mk_ite ctx tic_n one zero in
+  let cpt_rec_case = Arithmetic.mk_add ctx [ cpt_n_minus_1; ite_tic ] in
+  let cpt_def =
+    Boolean.mk_ite ctx (Boolean.mk_eq ctx n_var zero) zero cpt_rec_case
+  in
+
+  let cpt_constraint = Boolean.mk_eq ctx cpt_n cpt_def in
+  let cpt_forall =
+    Quantifier.mk_forall_const ctx [ n_var ] cpt_constraint None [] [] None None
+  in
+  Solver.add solver [ Quantifier.expr_of_quantifier cpt_forall ];
+
+  (* Define ok(n) = if n = 0 then true else aux(n) *)
+  let ok_expr n =
+    Boolean.mk_ite ctx (Boolean.mk_eq ctx n zero) (Boolean.mk_true ctx)
+      (FuncDecl.apply aux [ n ])
+  in
+
+  (* Assert: forall n: (aux(n) <=> cpt(n-1) <= cpt(n)) *)
+  let m_var = declare_symbol ctx "m" int_sort in
+  let aux_m = FuncDecl.apply aux [ m_var ] in
+  let cpt_m = FuncDecl.apply cpt [ m_var ] in
+  let cpt_m_minus_1 =
+    FuncDecl.apply cpt [ Arithmetic.mk_sub ctx [ m_var; one ] ]
+  in
+  let le_constraint = Arithmetic.mk_le ctx cpt_m_minus_1 cpt_m in
+
+  let main_constraint =
+    Boolean.mk_and ctx
+      [
+        Boolean.mk_implies ctx aux_m le_constraint;
+        Boolean.mk_implies ctx le_constraint aux_m;
+      ]
+  in
+
+  let main_forall =
+    Quantifier.mk_forall_const ctx [ m_var ] main_constraint None [] [] None
+      None
+  in
+  Solver.add solver [ Quantifier.expr_of_quantifier main_forall ];
+
+  (* Assert (not (ok n)) for some constant n *)
+  let n_const = declare_symbol ctx "n_const" int_sort in
+  Solver.add solver [ Boolean.mk_not ctx (ok_expr n_const) ];
+
+  (* Check satisfiability *)
+  print_endline "unsat iff ok is always true:";
+  match Solver.check solver [] with
+  | Solver.UNSATISFIABLE -> print_endline "unsat"
+  | Solver.SATISFIABLE -> print_endline "sat"
+  | Solver.UNKNOWN -> print_endline "unknown"
