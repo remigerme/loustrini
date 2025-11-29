@@ -13,6 +13,17 @@
         (=> (<= (cpt (- n 1)) (cpt n)) (aux n)))))
 
 (declare-const n Int)
-(assert (not (ok n)))
-(echo "unsat iff ok is always true:")
+
+(push)
+(echo "initialization: unsat iff ok(0) is true:")
+(assert (not (ok 0)))
 (check-sat)
+(pop)
+
+(push)
+(echo "consecution: unsat iff ok(n) => ok(n+1) is true:")
+(assert (>= n 0))
+(assert (ok n))
+(assert (not (ok (+ n 1))))
+(check-sat)
+(pop)

@@ -72,13 +72,28 @@ let () =
   in
   Solver.add solver [ Quantifier.expr_of_quantifier main_forall ];
 
-  (* Assert (not (ok n)) for some constant n *)
+  (* Declare constant n for inductive checks *)
   let n_const = declare_symbol ctx "n_const" int_sort in
-  Solver.add solver [ Boolean.mk_not ctx (ok_expr n_const) ];
 
-  (* Check satisfiability *)
-  print_endline "unsat iff ok is always true:";
-  match Solver.check solver [] with
+  (* Check initialization: ok(0) *)
+  print_endline "initialization: unsat iff ok(0) is true:";
+  Solver.push solver;
+  Solver.add solver [ Boolean.mk_not ctx (ok_expr zero) ];
+  (match Solver.check solver [] with
   | Solver.UNSATISFIABLE -> print_endline "unsat"
   | Solver.SATISFIABLE -> print_endline "sat"
-  | Solver.UNKNOWN -> print_endline "unknown"
+  | Solver.UNKNOWN -> print_endline "unknown");
+  Solver.pop solver 1;
+
+  (* Check consecution: ok(n) => ok(n+1) *)
+  print_endline "consecution: unsat iff ok(n) => ok(n+1) is true:";
+  Solver.push solver;
+  Solver.add solver [ Arithmetic.mk_ge ctx n_const zero ];
+  Solver.add solver [ ok_expr n_const ];
+  Solver.add solver
+    [ Boolean.mk_not ctx (ok_expr (Arithmetic.mk_add ctx [ n_const; one ])) ];
+  (match Solver.check solver [] with
+  | Solver.UNSATISFIABLE -> print_endline "unsat"
+  | Solver.SATISFIABLE -> print_endline "sat"
+  | Solver.UNKNOWN -> print_endline "unknown");
+  Solver.pop solver 1
