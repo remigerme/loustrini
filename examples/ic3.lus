@@ -1,0 +1,15 @@
+(* First example from Understanding IC3, Bradley, https://doi.org/10.1007/978-3-642-31612-8_1. *)
+(* The property is not inductive and needs to be strengthen. *)
+
+node update(c: bool) returns (x, y: int);
+let
+    x = 1 -> pre (x + 1);
+    y = 1 -> pre (y + x);
+tel
+
+node check(c: bool) returns (ok: bool);
+var x, y: int;
+let
+    x, y = update(c);
+    ok = y >= 0;
+tel
