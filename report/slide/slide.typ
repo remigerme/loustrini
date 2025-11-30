@@ -15,7 +15,9 @@
 
 #title-slide()
 
-= TODO
+#outline()
+
+= First experiments
 
 == Initial fiddling with SMT solvers
 
@@ -37,3 +39,37 @@ Aftermath of these initial experiments:
 #sepa
 
 $=>$ Loustrini is _not_ solver-agnostic (based on `Z3`).
+
+= H-Houdini and Invariant Learning Algorithms
+
+== Overview of invariant learning algorithms
+
+*Goal:* prove a safety property $P$.
+
+Let's not use _$k$-induction_ but _invariant learning_ instead.
+
+*Challenge:* find a property $F$ such that:
+$
+  & "(initialization)"           &              I & => F \
+  & "(consecution)"              & F and T(F, F') & => F' \
+  & "(implies desired property)" &              F & => P \
+$
+
+How to find such an $F$?
+
+$
+  & "start from" F_0 := P \
+  & "while" F_0 and ... and F_i "is not inductive" \
+  & space.quad space.quad "learn" F_(i+1) "from a counterexample (strengthening)" \
+  & F := F_0 and ... and F_i
+$
+
+== Learning invariants with H-Houdini
+
+TODO
+
+= Current Status & Future Work
+
+== Current status & future work
+
+TODO

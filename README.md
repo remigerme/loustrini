@@ -62,6 +62,12 @@ The report is written using [Typst](https://github.com/typst/typst). Assuming Ty
 typst compile report/report.typ
 ```
 
+You can also build the presentation slides. Note that this was a very early presentation, way before Loustrini was completed.
+
+```shell
+typst compile report/slide/slide.typ
+```
+
 ## Acknowledgments
 
 The skeleton of the project (see the [initial commit](https://github.com/remigerme/loustrini/commit/689e7a1439ee5960ce7f122506f1134aa755e688)) was provided by [Marc Pouzet](https://www.di.ens.fr/~pouzet/) and [Timothy Bourke](https://www.tbrk.org/) for the SYNC: Synchronous Programming of Reactive Systems class at [MPRI](https://mpri-master.ens.fr/).
