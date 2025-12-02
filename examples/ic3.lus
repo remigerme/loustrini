@@ -7,9 +7,9 @@ let
     y = 1 -> pre (y + x);
 tel
 
-node check(c: bool) returns (ok: bool);
+node check() returns (ok: bool);
 var x, y: int;
 let
-    x, y = update(c);
+    x, y = update();
     ok = y >= 0;
 tel

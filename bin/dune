@@ -1,7 +1,15 @@
 (executable
  (name loustrini)
- (libraries last))
+ (libraries ast))
 
 (executable
  (name incr)
- (libraries last z3))
+ (libraries z3))
+
+(executable
+ (name ic3)
+ (libraries z3))
+
+(executable
+ (name proof)
+ (libraries z3))
