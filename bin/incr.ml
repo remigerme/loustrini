@@ -1,99 +1,74 @@
-(* Manual OCaml equivalent of file:///./../examples/incr.smt2 using Z3 bindings. *)
-
 open Z3
 
-let declare_symbol ctx name sort =
+let declare_const ctx name sort =
   let sym = Symbol.mk_string ctx name in
   Expr.mk_const ctx sym sort
 
+let declare_func ctx name in_t out_t =
+  let func = FuncDecl.mk_func_decl_s ctx name in_t out_t in
+  func
+
+(* Z3 setup *)
+let ctx = mk_context []
+let int_s = Arithmetic.Integer.mk_sort ctx
+let bool_s = Boolean.mk_sort ctx
+let zero = Arithmetic.Integer.mk_numeral_i ctx 0
+let one = Arithmetic.Integer.mk_numeral_i ctx 1
+
+(* Declaring function symbols *)
+let tic = declare_func ctx "tic" [ int_s ] bool_s
+let ok = declare_func ctx "ok" [ int_s ] bool_s
+let cpt = declare_func ctx "cpt" [ int_s ] int_s
+
+let def_cpt n =
+  let ite1 =
+    Boolean.mk_ite ctx (Boolean.mk_eq ctx n zero) zero
+      (Expr.mk_app ctx cpt [ Arithmetic.mk_sub ctx [ n; one ] ])
+  in
+  let ite2 = Boolean.mk_ite ctx (Expr.mk_app ctx tic [ n ]) one zero in
+  Boolean.mk_eq ctx
+    (Expr.mk_app ctx cpt [ n ])
+    (Arithmetic.mk_add ctx [ ite1; ite2 ])
+
+let def_ok n =
+  Boolean.mk_eq ctx (Expr.mk_app ctx ok [ n ])
+    (Boolean.mk_ite ctx (Boolean.mk_eq ctx n zero) (Boolean.mk_true ctx)
+       (Arithmetic.mk_le ctx
+          (Expr.mk_app ctx cpt [ Arithmetic.mk_sub ctx [ n; one ] ])
+          (Expr.mk_app ctx cpt [ n ])))
+
+let delta_incr n = Boolean.mk_and ctx [ def_cpt n; def_ok n ]
+let prop n = Expr.mk_app ctx ok [ n ]
+let solver = Solver.mk_solver ctx None
+
+(* Initialization *)
 let () =
-  let ctx = mk_context [] in
-  let solver = Solver.mk_solver ctx None in
-
-  let int_sort = Arithmetic.Integer.mk_sort ctx in
-  let bool_sort = Boolean.mk_sort ctx in
-
-  (* Declare functions *)
-  let tic = FuncDecl.mk_func_decl_s ctx "tic" [ int_sort ] bool_sort in
-  let aux = FuncDecl.mk_func_decl_s ctx "aux" [ int_sort ] bool_sort in
-  let cpt = FuncDecl.mk_func_decl_s ctx "cpt" [ int_sort ] int_sort in
-
-  (* Constants *)
-  let zero = Arithmetic.Integer.mk_numeral_i ctx 0 in
-  let one = Arithmetic.Integer.mk_numeral_i ctx 1 in
-
-  (* Define recursive function cpt using quantifier *)
-  (* For all n: cpt(n) = if n = 0 then 0 else cpt(n-1) + (if tic(n) then 1 else 0) *)
-  let n_var = declare_symbol ctx "n" int_sort in
-
-  let cpt_n = FuncDecl.apply cpt [ n_var ] in
-  let cpt_n_minus_1 =
-    FuncDecl.apply cpt [ Arithmetic.mk_sub ctx [ n_var; one ] ]
+  let s =
+    match
+      Solver.check solver [ delta_incr zero; Boolean.mk_not ctx (prop zero) ]
+    with
+    | UNSATISFIABLE -> "unsat initialization"
+    | SATISFIABLE -> "sat initialization"
+    | UNKNOWN -> "unknwon initialization"
   in
-  let tic_n = FuncDecl.apply tic [ n_var ] in
-  let ite_tic = Boolean.mk_ite ctx tic_n one zero in
-  let cpt_rec_case = Arithmetic.mk_add ctx [ cpt_n_minus_1; ite_tic ] in
-  let cpt_def =
-    Boolean.mk_ite ctx (Boolean.mk_eq ctx n_var zero) zero cpt_rec_case
+  print_endline s
+
+(* Consecution *)
+let () =
+  let n = declare_const ctx "n" int_s in
+  let n_plus_1 = Arithmetic.mk_add ctx [ n; one ] in
+  let s =
+    match
+      Solver.check solver
+        [
+          delta_incr n;
+          delta_incr n_plus_1;
+          prop n;
+          Boolean.mk_not ctx (prop n_plus_1);
+        ]
+    with
+    | SATISFIABLE -> "sat consecution"
+    | UNSATISFIABLE -> "unsat consecution"
+    | UNKNOWN -> "unknown consecution"
   in
-
-  let cpt_constraint = Boolean.mk_eq ctx cpt_n cpt_def in
-  let cpt_forall =
-    Quantifier.mk_forall_const ctx [ n_var ] cpt_constraint None [] [] None None
-  in
-  Solver.add solver [ Quantifier.expr_of_quantifier cpt_forall ];
-
-  (* Define ok(n) = if n = 0 then true else aux(n) *)
-  let ok_expr n =
-    Boolean.mk_ite ctx (Boolean.mk_eq ctx n zero) (Boolean.mk_true ctx)
-      (FuncDecl.apply aux [ n ])
-  in
-
-  (* Assert: forall n: (aux(n) <=> cpt(n-1) <= cpt(n)) *)
-  let m_var = declare_symbol ctx "m" int_sort in
-  let aux_m = FuncDecl.apply aux [ m_var ] in
-  let cpt_m = FuncDecl.apply cpt [ m_var ] in
-  let cpt_m_minus_1 =
-    FuncDecl.apply cpt [ Arithmetic.mk_sub ctx [ m_var; one ] ]
-  in
-  let le_constraint = Arithmetic.mk_le ctx cpt_m_minus_1 cpt_m in
-
-  let main_constraint =
-    Boolean.mk_and ctx
-      [
-        Boolean.mk_implies ctx aux_m le_constraint;
-        Boolean.mk_implies ctx le_constraint aux_m;
-      ]
-  in
-
-  let main_forall =
-    Quantifier.mk_forall_const ctx [ m_var ] main_constraint None [] [] None
-      None
-  in
-  Solver.add solver [ Quantifier.expr_of_quantifier main_forall ];
-
-  (* Declare constant n for inductive checks *)
-  let n_const = declare_symbol ctx "n_const" int_sort in
-
-  (* Check initialization: ok(0) *)
-  print_endline "initialization: unsat iff ok(0) is true:";
-  Solver.push solver;
-  Solver.add solver [ Boolean.mk_not ctx (ok_expr zero) ];
-  (match Solver.check solver [] with
-  | Solver.UNSATISFIABLE -> print_endline "unsat"
-  | Solver.SATISFIABLE -> print_endline "sat"
-  | Solver.UNKNOWN -> print_endline "unknown");
-  Solver.pop solver 1;
-
-  (* Check consecution: ok(n) => ok(n+1) *)
-  print_endline "consecution: unsat iff ok(n) => ok(n+1) is true:";
-  Solver.push solver;
-  Solver.add solver [ Arithmetic.mk_ge ctx n_const zero ];
-  Solver.add solver [ ok_expr n_const ];
-  Solver.add solver
-    [ Boolean.mk_not ctx (ok_expr (Arithmetic.mk_add ctx [ n_const; one ])) ];
-  (match Solver.check solver [] with
-  | Solver.UNSATISFIABLE -> print_endline "unsat"
-  | Solver.SATISFIABLE -> print_endline "sat"
-  | Solver.UNKNOWN -> print_endline "unknown");
-  Solver.pop solver 1
+  print_endline s

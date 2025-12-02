@@ -9,7 +9,3 @@
 (executable
  (name ic3)
  (libraries z3))
-
-(executable
- (name proof)
- (libraries z3))
