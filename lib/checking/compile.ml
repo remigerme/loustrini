@@ -2,6 +2,7 @@ open Ast
 open Ast.Typed_ast
 open Ast.Asttypes
 open Z3
+open Env
 
 type error =
   | TooFewArguments
@@ -11,14 +12,11 @@ type error =
 
 exception Error of error
 
-type z3_env_t = {
-  func_decls : (string, FuncDecl.func_decl) Hashtbl.t;
-  func_defs : (string, Expr.expr -> Expr.expr) Hashtbl.t;
-}
-
 (************************************)
 (* First step: defining func_decls. *)
 (************************************)
+
+let ident_to_str (x : Ident.t) = Printf.sprintf "%s__%i" x.name x.id
 
 let base_ty_to_sort ctx ty =
   match ty with
@@ -30,9 +28,10 @@ let define_func_decls_node ctx env (node : t_node) =
   let int_s = Arithmetic.Integer.mk_sort ctx in
   let define_func_decl (v : typed_var) =
     let x, ty = v in
+    let name = ident_to_str x in
     let out_s = base_ty_to_sort ctx ty in
-    let decl = FuncDecl.mk_func_decl_s ctx x.name [ int_s ] out_s in
-    Hashtbl.add env.func_decls x.name decl
+    let decl = FuncDecl.mk_func_decl_s ctx name [ int_s ] out_s in
+    Hashtbl.add env.func_decls name decl
   in
   List.iter define_func_decl node.tn_input;
   List.iter define_func_decl node.tn_output;
@@ -79,13 +78,13 @@ let rec compile_expr_desc ctx env n n_pre n_arr (e : t_expr_desc) =
         else
           Arithmetic.mk_sub ctx [ n; Arithmetic.Integer.mk_numeral_i ctx n_pre ]
       in
-      Expr.mk_app ctx (Hashtbl.find env.func_decls x.name) [ arg ]
+      Expr.mk_app ctx (Hashtbl.find env.func_decls (ident_to_str x)) [ arg ]
   | TE_op (op, es) ->
       let e = List.map (compile_expr ctx env n n_pre n_arr) es in
       compile_op ctx op e
   | TE_app (f, args) ->
       Expr.mk_app ctx
-        (Hashtbl.find env.func_decls f.name)
+        (Hashtbl.find env.func_decls (ident_to_str f))
         (List.map (compile_expr ctx env n n_pre n_arr) args)
   | TE_prim (f, args) -> (
       match args with
@@ -118,12 +117,13 @@ and compile_expr ctx env n n_pre n_arr (e : t_expr) =
     populated with [func_decls]. This function populates the [func_defs] field
     with the definition of [x]. *)
 let compile_eq_one_to_one ctx env (x : Ident.t) (e : t_expr) =
+  let name = ident_to_str x in
   let def_x n =
-    let xn = Expr.mk_app ctx (Hashtbl.find env.func_decls x.name) [ n ] in
+    let xn = Expr.mk_app ctx (Hashtbl.find env.func_decls name) [ n ] in
     let xn_body = compile_expr ctx env n 0 0 e in
     Boolean.mk_eq ctx xn xn_body
   in
-  Hashtbl.add env.func_defs x.name def_x
+  Hashtbl.add env.func_defs name def_x
 
 let compile_eq _ctx _env (_eq : t_equation) = () (* TODO plumbing *)
 
