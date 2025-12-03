@@ -3,7 +3,11 @@ open Ast.Typed_ast
 open Ast.Asttypes
 open Z3
 
-type error = TooFewArguments | TooManyArguments | UnknownPrim
+type error =
+  | TooFewArguments
+  | TooManyArguments
+  | UnknownPrim
+  | InvalidOpArguments
 
 exception Error of error
 
@@ -34,16 +38,37 @@ let define_func_decls_node ctx env (node : t_node) =
   List.iter define_func_decl node.tn_output;
   List.iter define_func_decl node.tn_local
 
-(********************************************************)
-(* Second step: compiling stream definitions (func_defs) using the
-   "let def_x : Expr.expr -> Expr.expr = fun n -> ..." technique. *)
-(********************************************************)
+(*******************************************************************)
+(* Second step: compiling stream definitions (func_defs) using the *
+ * "let def_x : Expr.expr -> Expr.expr = fun n -> ..." technique.  *)
+(*******************************************************************)
 
 let compile_const ctx (c : const) =
   match c with
   | Cbool b -> if b then Boolean.mk_true ctx else Boolean.mk_false ctx
   | Cint i -> Arithmetic.Integer.mk_numeral_i ctx i
   | Creal r -> Arithmetic.Real.mk_numeral_s ctx (string_of_float r)
+
+let compile_op ctx op (es : Expr.expr list) =
+  match (op, es) with
+  | Op_eq, [ e1; e2 ] -> Boolean.mk_eq ctx e1 e2
+  | Op_neq, [ e1; e2 ] -> Boolean.mk_not ctx (Boolean.mk_eq ctx e1 e2)
+  | Op_lt, [ e1; e2 ] -> Arithmetic.mk_lt ctx e1 e2
+  | Op_le, [ e1; e2 ] -> Arithmetic.mk_le ctx e1 e2
+  | Op_gt, [ e1; e2 ] -> Arithmetic.mk_gt ctx e1 e2
+  | Op_ge, [ e1; e2 ] -> Arithmetic.mk_ge ctx e1 e2
+  | (Op_add | Op_add_f), e -> Arithmetic.mk_add ctx e
+  | (Op_sub | Op_sub_f), [ e ] -> Arithmetic.mk_unary_minus ctx e
+  | (Op_sub | Op_sub_f), e -> Arithmetic.mk_sub ctx e
+  | (Op_mul | Op_mul_f), e -> Arithmetic.mk_mul ctx e
+  | (Op_div | Op_div_f), [ e1; e2 ] -> Arithmetic.mk_div ctx e1 e2
+  | Op_mod, [ e1; e2 ] -> Arithmetic.Integer.mk_mod ctx e1 e2
+  | Op_not, [ e ] -> Boolean.mk_not ctx e
+  | Op_and, e -> Boolean.mk_and ctx e
+  | Op_or, e -> Boolean.mk_or ctx e
+  | Op_impl, [ e1; e2 ] -> Boolean.mk_implies ctx e1 e2
+  | Op_if, [ eb; e1; e2 ] -> Boolean.mk_ite ctx eb e1 e2
+  | _ -> raise (Error InvalidOpArguments)
 
 let rec compile_expr_desc ctx env n n_pre n_arr (e : t_expr_desc) =
   match e with
@@ -55,7 +80,9 @@ let rec compile_expr_desc ctx env n n_pre n_arr (e : t_expr_desc) =
           Arithmetic.mk_sub ctx [ n; Arithmetic.Integer.mk_numeral_i ctx n_pre ]
       in
       Expr.mk_app ctx (Hashtbl.find env.func_decls x.name) [ arg ]
-  | TE_op (_op, _es) -> assert false (* TODO *)
+  | TE_op (op, es) ->
+      let e = List.map (compile_expr ctx env n n_pre n_arr) es in
+      compile_op ctx op e
   | TE_app (f, args) ->
       Expr.mk_app ctx
         (Hashtbl.find env.func_decls f.name)
@@ -98,7 +125,7 @@ let compile_eq_one_to_one ctx env (x : Ident.t) (e : t_expr) =
   in
   Hashtbl.add env.func_defs x.name def_x
 
-let compile_eq ctx env (eq : t_equation) = () (* TODO plumbing *)
+let compile_eq _ctx _env (_eq : t_equation) = () (* TODO plumbing *)
 
 (** Compiling a single node. At this point, [env] must already be populated with
     [func_decls] of all functions. *)
