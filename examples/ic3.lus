@@ -1,6 +1,3 @@
-(* First example from Understanding IC3, Bradley, https://doi.org/10.1007/978-3-642-31612-8_1. *)
-(* The property is not inductive and needs to be strengthen. *)
-
 node update() returns (x, y: int);
 let
     x = 1 -> pre (x + 1);
@@ -10,6 +7,6 @@ tel
 node check() returns (ok: bool);
 var x, y: int;
 let
-    x, y = update();
+    (x, y) = update();
     ok = y >= 0;
 tel
