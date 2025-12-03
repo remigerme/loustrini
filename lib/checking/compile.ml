@@ -12,6 +12,33 @@ type z3_env_t = {
   func_defs : (string, Expr.expr -> Expr.expr) Hashtbl.t;
 }
 
+(************************************)
+(* First step: defining func_decls. *)
+(************************************)
+
+let base_ty_to_sort ctx ty =
+  match ty with
+  | Tbool -> Boolean.mk_sort ctx
+  | Tint -> Arithmetic.Integer.mk_sort ctx
+  | Treal -> Arithmetic.Real.mk_sort ctx
+
+let define_func_decls_node ctx env (node : t_node) =
+  let int_s = Arithmetic.Integer.mk_sort ctx in
+  let define_func_decl (v : typed_var) =
+    let x, ty = v in
+    let out_s = base_ty_to_sort ctx ty in
+    let decl = FuncDecl.mk_func_decl_s ctx x.name [ int_s ] out_s in
+    Hashtbl.add env.func_decls x.name decl
+  in
+  List.iter define_func_decl node.tn_input;
+  List.iter define_func_decl node.tn_output;
+  List.iter define_func_decl node.tn_local
+
+(********************************************************)
+(* Second step: compiling stream definitions (func_defs) using the
+   "let def_x : Expr.expr -> Expr.expr = fun n -> ..." technique. *)
+(********************************************************)
+
 let compile_const ctx (c : const) =
   match c with
   | Cbool b -> if b then Boolean.mk_true ctx else Boolean.mk_false ctx
@@ -56,13 +83,42 @@ let rec compile_expr_desc ctx env n n_pre n_arr (e : t_expr_desc) =
 and compile_expr ctx env n n_pre n_arr (e : t_expr) =
   compile_expr_desc ctx env n n_pre n_arr e.texpr_desc
 
-(** Handling a single one-to-one equation. At this point, [env] must already be
+(************************************************)
+(* Third step: compiling a node (aka plumbing). *)
+(************************************************)
+
+(** Compiling a single one-to-one equation. At this point, [env] must already be
     populated with [func_decls]. This function populates the [func_defs] field
     with the definition of [x]. *)
-let handle_eq_one ctx env (x : Ident.t) (e : t_expr) =
+let compile_eq_one_to_one ctx env (x : Ident.t) (e : t_expr) =
   let def_x n =
     let xn = Expr.mk_app ctx (Hashtbl.find env.func_decls x.name) [ n ] in
     let xn_body = compile_expr ctx env n 0 0 e in
     Boolean.mk_eq ctx xn xn_body
   in
   Hashtbl.add env.func_defs x.name def_x
+
+let compile_eq ctx env (eq : t_equation) = () (* TODO plumbing *)
+
+(** Compiling a single node. At this point, [env] must already be populated with
+    [func_decls] of all functions. *)
+let compile_node ctx env (node : t_node) =
+  List.iter (compile_eq ctx env) node.tn_equs
+
+(********************************************)
+(* Fourth step: putting everything together *)
+(********************************************)
+
+let compile_file ctx (f : t_file) =
+  (* Create a new env *)
+  let func_decls = Hashtbl.create 50 in
+  let func_defs = Hashtbl.create 50 in
+  let env = { func_decls; func_defs } in
+
+  (* Define all func_decls *)
+  List.iter (define_func_decls_node ctx env) f;
+
+  (* Compile all nodes *)
+  List.iter (compile_node ctx env) f;
+
+  env
