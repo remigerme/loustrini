@@ -1,6 +1,10 @@
 #import "@preview/touying:0.6.1": *
 #import themes.metropolis: *
 
+#import "@preview/codly:1.3.0": *
+#import "@preview/codly-languages:0.1.10": *
+#show: codly-init.with()
+
 #let oran = rgb("#eb811b")
 #let sepa = align(center, line(length: 80%, stroke: oran))
 
@@ -15,11 +19,11 @@
 
 #title-slide()
 
-#outline()
+#outline(depth: 1)
 
 = First experiments
 
-== Initial fiddling with SMT solvers
+== Initial fiddling with SMT solvers: finding bugs
 
 *Goal:* SMT-solver-agnostic model checker $=>$ use of a frontend library $=>$ in OCaml: `Smt.ml`
 
@@ -39,6 +43,58 @@ Aftermath of these initial experiments:
 #sepa
 
 $=>$ Loustrini is _not_ solver-agnostic (based on `Z3`).
+
+== Initial fiddling with SMT solvers: encoding programs
+
+Two encodings of the same Lustre program (`x = 1 -> pre x + 1; y = 1 -> pre (x + y); ok = y >= 0;`):
+
+#{
+  set text(size: 0.55em)
+  grid(
+    columns: (1fr, 1fr),
+    column-gutter: 10pt,
+    row-gutter: 1.5em,
+    align: center,
+    ```smt2
+    (define-fun-rec x_naive ((n Int)) Int
+        (ite (= n 0) 1 (+ (x_naive (- n 1)) 1)))
+    (define-fun-rec y_naive ((n Int)) Int
+        (ite (= n 0) 1 (+ (y_naive (- n 1)) (x_naive (- n 1)))))
+    (define-fun ok_naive ((n Int)) Bool
+        (>= (y_naive n) 0))
+
+    (declare-const n Int)
+
+    (echo "consecution: unsat iff ok(n) => ok(n+1) is true:")
+    (assert (and (>= n 0) (ok n) (not (ok (+ n 1)))))
+    (check-sat)
+    ```,
+    ```smt2
+    (define-fun init ((x Int) (y Int)) Bool (and (= x 1) (= y 1)))
+
+    (define-fun trans ((x Int) (y Int) (nx Int) (ny Int)) Bool
+        (and (= nx (+ x 1))
+             (= ny (+ y x))))
+
+    (define-fun ok ((y Int)) Bool (>= y 0))
+
+    (declare-const x Int)
+    (declare-const y Int)
+    (declare-const nx Int)
+    (declare-const ny Int)
+
+    (echo "consecution: unsat iff ok is inductive:")
+    (assert (and (ok y)
+                 (trans x y nx ny)
+                 (not (ok ny))))
+    (check-sat)
+    ```,
+
+    [Z3 *timeouts* without providing a counterexample.],
+
+    [Z3 *immediately answers* `SAT`, providing a counterexample.],
+  )
+}
 
 = H-Houdini and Invariant Learning Algorithms
 
