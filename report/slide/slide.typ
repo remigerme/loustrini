@@ -120,12 +120,51 @@ $
   & F := F_0 and ... and F_i
 $
 
-== Learning invariants with H-Houdini
+== Learning invariants with H-Houdini @h-houdini
 
 TODO
 
 = Current Status & Future Work
 
-== Current status & future work
+== Lustre $=>$ SMT
+
+TODO encoding
+
+TODO env
+
+Straightforward except two constructs:
+- handling tuples
+- handling function calls
+
+== Lustre $=>$ SMT: tuples
+
+Two possible solutions:
+- define tuple sorts directly in `Z3`'s logic
+- *treat a $n$-tuple as $n$ expressions*: return a list of expr defining each member of the tuple.
+
+#sepa
+
+#text(size: 0.7em, {
+  codly(highlights: ((line: 6, start: 25, end: 38, fill: red),))
+  ```OCaml
+  let rec compile_expr
+    (ctx   : context  )
+    (env   : z3_env_t )
+    (n     : Expr.expr)
+    (n_pre : int      )
+    (n_arr : int      ) : Expr.expr list = ...
+  ```
+})
+
+Remarks:
+- nested tuples are flattened
+- we considered *`if`* to be the only polymorphic operator @lustre-tutorial \ (other operators such as `=`, `+`, ... do not support tuples)
+
+== Lustre $=>$ SMT: function calls
 
 TODO
+
+#pagebreak()
+
+#set align(top)
+#bibliography("bibliography.bib", title: "References")
