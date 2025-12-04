@@ -1,6 +1,6 @@
 (executable
  (name loustrini)
- (libraries ast))
+ (libraries ast checking z3))
 
 (executable
  (name incr)
@@ -8,4 +8,8 @@
 
 (executable
  (name ic3)
+ (libraries z3))
+
+(executable
+ (name ic3_tuple)
  (libraries z3))
