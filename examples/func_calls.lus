@@ -1,0 +1,14 @@
+node incr(x: int) returns (y: int);
+var l: int;
+let
+    l = x + 1;
+    y = x + l;
+tel
+
+node compute(a, b: int) returns (c: int);
+var z, t: int;
+let
+    z = incr(a);
+    t = incr(b);
+    b = z + t;
+tel

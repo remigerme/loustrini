@@ -13,3 +13,7 @@
 (executable
  (name ic3_tuple)
  (libraries z3))
+
+(executable
+ (name func_calls)
+ (libraries z3))
