@@ -1,8 +1,13 @@
 open Z3
+open Ast
+open Ast.Typed_ast
 
 type z3_env_t = {
   func_decls : (string, FuncDecl.func_decl) Hashtbl.t;
-  func_defs : (string, Expr.expr -> Expr.expr) Hashtbl.t;
+  mutable func_defs : Expr.expr list;
+  (* Storing node info *)
+  node_from_ids : (Ident.t, t_node) Hashtbl.t;
+  node_calls : (t_node, int) Hashtbl.t;
 }
 
 let print_env env =
@@ -12,8 +17,6 @@ let print_env env =
   Hashtbl.iter
     (fun name decl -> Printf.printf "- %s: %s\n" name (FuncDecl.to_string decl))
     env.func_decls;
-  Printf.printf "\nFunction Definitions (%d):\n" (Hashtbl.length env.func_defs);
-  Hashtbl.iter
-    (fun name _def -> Printf.printf "- %s: <function>\n" name)
-    env.func_defs;
+  Printf.printf "\nFunction Definitions (%d):\n" (List.length env.func_defs);
+  List.iter (fun e -> print_endline (Expr.to_string e)) env.func_defs;
   Printf.printf "=======================\n"
