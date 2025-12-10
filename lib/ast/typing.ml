@@ -442,5 +442,10 @@ let check_main ft main =
 
 let type_file f main =
   let ft = List.map type_node f in
-  if main <> "" then check_main ft main;
-  ft
+  let main_node =
+    if main = "" then None
+    else (
+      check_main ft main;
+      Some (List.find (fun n -> n.tn_name.Ident.name = main) ft))
+  in
+  (ft, main_node)
