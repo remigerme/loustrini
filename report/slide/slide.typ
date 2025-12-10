@@ -162,7 +162,58 @@ Remarks:
 
 == Lustre $=>$ SMT: function calls
 
-TODO
+Problem:
+
+#grid(
+  columns: (1fr, 1fr),
+  column-gutter: 20pt,
+  text(size: 0.6em, ```lustre
+  node incr(x: int) returns (y: int);
+  var l: int;
+  let
+      l = x + 1;
+      y = x + l;
+  tel
+
+  node compute(a, b: int) returns (c: int);
+  var z, t: int;
+  let
+      z = incr(a);
+      t = incr(b);
+      b = z + t;
+  tel
+  ```),
+  [We can't just have $ &"(incr def)" &&cases(l(n) = x(n) + 1, y(n) = x(n) + l(n)) \ &"(incr calls)" &&cases(x(n) = a(n), z(n) = y(n), text(fill: #red, x(n) = b(n)), text(fill: #red, t(n) = y(n))) $],
+)
+
+#v(1em)
+#align(
+  center,
+  [We need to resort to *instantiating* the node at each call site (_i.e._ perform inlining). \ #text(size: 0.6em)[(And that was a very painful rabbit hole, because I wanted definitions to be functions of `n`: `expr -> expr`, instead: use substitutions.)]],
+)
+
+#pagebreak()
+
+#grid(
+  columns: (1fr, 1fr),
+  $
+    "(incr call 1)" cases(&x_a (n) &= a(n), &l_a (n) &= x_a (n), &y_a (n) &= x_a (n) + l_a (n), &z(n) &= y_a (n))
+  $,
+
+  $
+    "(incr call 2)" cases(&x_b (n) &= b(n), &l_b (n) &= x_b (n), &y_b (n) &= x_b (n) + l_b (n), &t(n) &= y_b (n))
+  $,
+)
+
+Problem: we now have to learn invariant for *each instance* (separately in the worst case).
+
+How to learn efficiently invariants for a node (and not just for its instances)?
+
+In real-world projects (see #link("https://github.com/kind2-mc/kind2/discussions/1256", text(fill: oran, "discussion #1256")) and @kind2 @instantiation-based-invariant-discovery):
+- compositional reasoning
+- modular reasoning
+- progressive refinements
+- ...
 
 #pagebreak()
 
