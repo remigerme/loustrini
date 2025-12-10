@@ -113,6 +113,16 @@ let base_ty_to_sort ctx ty =
   | Tint -> Arithmetic.Integer.mk_sort ctx
   | Treal -> Arithmetic.Real.mk_sort ctx
 
+(** Defines [FuncDecl]s and updates [env]. *)
+let define_func_decl ctx env call (v : typed_var) =
+  let int_s = Arithmetic.Integer.mk_sort ctx in
+  let x, ty = v in
+  let name = ident_to_str_call x call in
+  let out_s = base_ty_to_sort ctx ty in
+  let decl = FuncDecl.mk_func_decl_s ctx name [ int_s ] out_s in
+  Hashtbl.add env.func_decls name decl;
+  decl
+
 (** Performs the following actions:
     - update the call counter for the node,
     - define a [FuncDecl] for each variable of the node,
@@ -124,19 +134,9 @@ let define_func_decls_node ctx env (node : t_node) =
   let call = 1 + Hashtbl.find env.node_calls node in
   Hashtbl.replace env.node_calls node call;
 
-  (* Defining [FuncDecl]s and updating [env] *)
-  let int_s = Arithmetic.Integer.mk_sort ctx in
-  let define_func_decl (v : typed_var) =
-    let x, ty = v in
-    let name = ident_to_str_call x call in
-    let out_s = base_ty_to_sort ctx ty in
-    let decl = FuncDecl.mk_func_decl_s ctx name [ int_s ] out_s in
-    Hashtbl.add env.func_decls name decl;
-    decl
-  in
-  let inputs = List.map define_func_decl node.tn_input in
-  let _ = List.map define_func_decl node.tn_local in
-  let outputs = List.map define_func_decl node.tn_output in
+  let inputs = List.map (define_func_decl ctx env call) node.tn_input in
+  let _ = List.map (define_func_decl ctx env call) node.tn_local in
+  let outputs = List.map (define_func_decl ctx env call) node.tn_output in
   (inputs, outputs)
 
 (*******************************************************************)
@@ -235,9 +235,9 @@ and compile_node ctx env (node : t_node) (args : Expr.expr list) =
   let evaluated_outputs = List.map eval outputs in
   evaluated_outputs
 
-(********************************************)
-(* Fourth step: putting everything together *)
-(********************************************)
+(********************)
+(* Creating new env *)
+(********************)
 
 let init_node_from_ids nodes =
   let node_from_ids = Hashtbl.create (List.length nodes) in
@@ -251,6 +251,9 @@ let init_node_calls nodes =
     (List.to_seq (List.map (fun n -> (n, 0)) nodes));
   node_calls
 
+(** Compile a whole file. Returns
+    - the [env] that was built during the compilation and contains the definitions,
+    - the outputs of the main node, which should be checked for truth. *)
 let compile_file ctx (f : t_file) (main : t_node) =
   (* Create a new env *)
   let func_decls = Hashtbl.create 50 in
@@ -262,5 +265,13 @@ let compile_file ctx (f : t_file) (main : t_node) =
       node_calls = init_node_calls f;
     }
   in
-  let outputs = compile_node ctx env main [] in
+
+  (* Creating symbols for top level arguments *)
+  let args = List.map (define_func_decl ctx env 0) main.tn_input in
+  let evaluated_args =
+    List.map (fun f -> Expr.mk_app ctx f [ n_global ctx ]) args
+  in
+
+  (* Compiling the node *)
+  let outputs = compile_node ctx env main evaluated_args in
   (env, outputs)
