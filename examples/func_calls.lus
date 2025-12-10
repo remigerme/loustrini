@@ -10,5 +10,13 @@ var z, t: int;
 let
     z = incr(a);
     t = incr(b);
-    b = z + t;
+    c = z + t;
+tel
+
+node check() returns (ok: bool);
+var r, s: int;
+let
+    r = 1;
+    s = 1;
+    ok = compute(r, s) >= compute(s, r);
 tel
