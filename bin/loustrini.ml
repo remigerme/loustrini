@@ -2,7 +2,7 @@
 
 open Format
 open Lexing
-open Llib.Lexer
+open Ast.Lexer
 
 let usage = "usage: " ^ Sys.argv.(0) ^ " [options] file.lus main"
 let parse_only = ref false
@@ -60,22 +60,27 @@ let () =
   let c = open_in file in
   let lb = Lexing.from_channel c in
   try
-    let f = Llib.Parser.file Llib.Lexer.token lb in
+    let f = Ast.Parser.file Ast.Lexer.token lb in
     close_in c;
     if !parse_only then exit 0;
-    let ft = Llib.Typing.type_file f main_node in
+    let ft, main_opt = Ast.Typing.type_file f main_node in
     if !verbose then begin
       Format.printf "/**************************************/@.";
       Format.printf "/* Typed ast                          */@.";
       Format.printf "/**************************************/@.";
-      Llib.Typed_ast_printer.print_node_list_std ft
+      Ast.Typed_ast_printer.print_node_list_std ft
     end;
     if !type_only then exit 0;
     if main_node = "" then exit 0;
+    let main = match main_opt with None -> exit 0 | Some x -> x in
 
-    (* XXX TODO XXX *)
-    Format.printf "Don't know@.";
+    (* Original skeleton ends there *)
+    let ctx = Z3.mk_context [] in
+    let env, prop = Checking.Compile.compile_file ctx ft main in
+    Checking.Env.print_env env;
+    Checking.Check.prove ctx env prop;
 
+    (* Back to original skeleton *)
     exit 0
   with
   | Lexical_error s ->
@@ -86,9 +91,9 @@ let () =
       report_loc (lexeme_start_p lb, lexeme_end_p lb);
       eprintf "syntax error\n@.";
       exit 1
-  | Llib.Typing.Error (l, e) ->
+  | Ast.Typing.Error (l, e) ->
       report_loc l;
-      eprintf "%a\n@." Llib.Typing.report e;
+      eprintf "%a\n@." Ast.Typing.report e;
       exit 1
   | e ->
       eprintf "Anomaly: %s\n@." (Printexc.to_string e);
