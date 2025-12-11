@@ -2,6 +2,9 @@ open Z3
 open Ast
 open Ast.Typed_ast
 
+(** The global time counter, which is then replaced by different instances using [Expr.substitute]. *)
+let n_global ctx = Expr.mk_const_s ctx "n" (Arithmetic.Integer.mk_sort ctx)
+
 type z3_env_t = {
   func_decls : (string, FuncDecl.func_decl) Hashtbl.t;
   mutable func_defs : Expr.expr list;

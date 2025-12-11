@@ -19,9 +19,6 @@ exception Error of error
 (* Utils *)
 (*********)
 
-(** The global time counter, which is then replaced by different instances using [Expr.substitute]. *)
-let n_global ctx = Expr.mk_const_s ctx "n" (Arithmetic.Integer.mk_sort ctx)
-
 (** Retrieve string identifier of a node. For streams, use [ident_to_str_call] instead. *)
 let ident_to_str (x : Ident.t) = Printf.sprintf "%s__%i" x.name x.id
 
@@ -271,6 +268,9 @@ let compile_file ctx (f : t_file) (main : t_node) =
     List.map (fun f -> Expr.mk_app ctx f [ n_global ctx ]) args
   in
 
-  (* Compiling the node *)
+  (* Compiling the node, evaluating and conjuncting outputs to form the validity property *)
   let outputs = compile_node ctx env main evaluated_args in
-  (env, outputs)
+  let eval out = Expr.mk_app ctx out [ arg_n ctx 0 ] in
+  let outputs = List.map eval outputs in
+  let prop = Boolean.mk_and ctx outputs in
+  (env, prop)
