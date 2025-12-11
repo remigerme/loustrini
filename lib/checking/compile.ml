@@ -139,11 +139,11 @@ let define_func_decls_node ctx env (node : t_node) =
   let outputs = List.map (define_func_decl ctx env call) node.tn_output in
   (inputs, outputs)
 
-(*******************************************************************)
-(* Second step: compiling stream definitions (func_defs) using the *
- * "let def_x : Expr.expr -> Expr.expr = fun n -> ..." technique.  *)
-(*******************************************************************)
+(*****************)
+(* Compile expr  *)
+(*****************)
 
+(** Returns the list of expressions seen as a tuple. *)
 let rec compile_expr_desc ctx env n_pre n_arr call (e : t_expr_desc) =
   match e with
   | TE_const c -> [ compile_const ctx c ]
@@ -184,15 +184,15 @@ let rec compile_expr_desc ctx env n_pre n_arr call (e : t_expr_desc) =
       let eargs = List.map (compile_expr ctx env n_pre n_arr call) args in
       let args = extract_simple_args eargs in
       let node = Hashtbl.find env.node_from_ids f in
-      let outs = compile_node ctx env node args in
-      outs
+      let outs_decls = compile_node ctx env node args in
+      List.map (fun out -> Expr.mk_app ctx out [ arg_n ctx n_pre ]) outs_decls
 
 and compile_expr ctx env n_pre n_arr call (e : t_expr) =
   compile_expr_desc ctx env n_pre n_arr call e.texpr_desc
 
-(************************************************)
-(* Third step: compiling a node (aka plumbing). *)
-(************************************************)
+(***************************************)
+(* Compile equations, nodes, and files *)
+(***************************************)
 
 (** Compile a single many-to-many equation.
     - At this point, [env.func_decls] must already be populated.
@@ -213,9 +213,9 @@ and compile_eq ctx env call (eq : t_equation) =
 
 (** Compile a fresh instance of the given node. Performs the following:
     - declare fresh [FuncDecl]s
-    - add definitions to plumb inputs to their argument values 
+    - add definitions to plumb inputs to their argument values
     - compile each equation of the node
-    - return the list of evaluated outputs. *)
+    - return the list of unevaluated outputs (evaluation depends on [n_pre]). *)
 and compile_node ctx env (node : t_node) (args : Expr.expr list) =
   let inputs, outputs = define_func_decls_node ctx env node in
   let eval f = Expr.mk_app ctx f [ n_global ctx ] in
@@ -231,9 +231,8 @@ and compile_node ctx env (node : t_node) (args : Expr.expr list) =
   let call = Hashtbl.find env.node_calls node in
   List.iter (compile_eq ctx env call) node.tn_equs;
 
-  (* Returning evaluated outputs *)
-  let evaluated_outputs = List.map eval outputs in
-  evaluated_outputs
+  (* Returning unevaluated outputs because the evaluation depends on n_pre *)
+  outputs
 
 (********************)
 (* Creating new env *)
