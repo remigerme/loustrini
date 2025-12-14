@@ -10,7 +10,10 @@ type state_var_t = {
   next : Expr.expr;
 }
 
-type z3_env_t = { vars : var_t list; state_vars : state_var_t list }
+type z3_env_t = {
+  mutable vars : var_t list;
+  mutable state_vars : state_var_t list;
+}
 
 let name_prime name = name ^ "_p"
 let expr_of_var ctx (v : var_t) = Expr.mk_const_s ctx v.name v.sort

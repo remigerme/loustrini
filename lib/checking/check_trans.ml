@@ -1,5 +1,5 @@
 open Z3
-open Env
+open Env_trans
 
 type error = NonBooleanProperty
 

@@ -1,3 +1,0 @@
-(library
- (name checking_prime)
- (libraries ast z3))
