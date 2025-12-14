@@ -1,6 +1,4 @@
-open Ast
 open Ast.Typed_ast
-open Ast.Asttypes
 open Z3
 open Env
 
