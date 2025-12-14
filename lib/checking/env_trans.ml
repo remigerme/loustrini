@@ -13,7 +13,26 @@ type state_var_t = {
 type z3_env_t = {
   mutable vars : var_t list;
   mutable state_vars : state_var_t list;
+  sort_from_ids : (Ast.Ident.t, Sort.sort) Hashtbl.t;
+  node_from_ids : (Ast.Ident.t, Ast.Typed_ast.t_node) Hashtbl.t;
+  node_calls : (Ast.Typed_ast.t_node, int) Hashtbl.t;
 }
+
+let print_env env =
+  Printf.printf "=== Z3 Environment ===\n";
+  Printf.printf "\nVariables (%d):\n" (List.length env.vars);
+  List.iter
+    (fun (var : var_t) ->
+      Printf.printf "- %s = %s\n" var.name (Expr.to_string var.def))
+    env.vars;
+  Printf.printf "\nState variables (%d):\n" (List.length env.state_vars);
+  List.iter
+    (fun var ->
+      Printf.printf "- %s: init = %s ;;; next = %s\n" var.name
+        (match var.init with None -> "" | Some i -> Expr.to_string i)
+        (Expr.to_string var.next))
+    env.state_vars;
+  Printf.printf "=======================\n"
 
 let name_prime name = name ^ "_p"
 let expr_of_var ctx (v : var_t) = Expr.mk_const_s ctx v.name v.sort
