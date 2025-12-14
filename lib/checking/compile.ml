@@ -19,21 +19,6 @@ exception Error of error
 (* Utils *)
 (*********)
 
-(** Retrieve string identifier of a node. For streams, use [ident_to_str_call] instead. *)
-let ident_to_str (x : Ident.t) = Printf.sprintf "%s__%i" x.name x.id
-
-(** Retrieve string identifier of a stream. *)
-let ident_to_str_call (x : Ident.t) (call : int) =
-  Printf.sprintf "%s__call__%i" (ident_to_str x) call
-
-(** Flatten a list of expressions assuming each expression is simple (not a tuple).
-    Else it cannot be flattened and an error is emitted. *)
-let rec extract_simple_args (e : Expr.expr list list) =
-  match e with
-  | [] -> []
-  | [ x ] :: q -> x :: extract_simple_args q
-  | _ -> raise (Error ExpectedValueGotTuple)
-
 (** Get the [Expr.expr] corresponding to the actual value of [n] (taking [n_pre] into account). *)
 let arg_n ctx n_pre =
   (* We could just use the generic expression in the else branch. *)
@@ -42,80 +27,16 @@ let arg_n ctx n_pre =
   if n_pre = 0 then n
   else Arithmetic.mk_sub ctx [ n; Arithmetic.Integer.mk_numeral_i ctx n_pre ]
 
-(*****************)
-(* Compile const *)
-(*****************)
-
-let compile_const ctx (c : const) =
-  match c with
-  | Cbool b -> if b then Boolean.mk_true ctx else Boolean.mk_false ctx
-  | Cint i -> Arithmetic.Integer.mk_numeral_i ctx i
-  | Creal r -> Arithmetic.Real.mk_numeral_s ctx (string_of_float r)
-
-(**************)
-(* Compile op *)
-(**************)
-
-(** `if` is polymorphic in Lustre and supports tuples. And we consider it is the only polymorphic operator 
-    (cf. https://www-verimag.imag.fr/DIST-TOOLS/SYNCHRONE/lustre-v4/distrib/lustre_tutorial.pdf).
-    We emit one [Expr.expr] per member of the tuple. *)
-let rec compile_if ctx eb (e1 : Expr.expr list) (e2 : Expr.expr list) =
-  match (e1, e2) with
-  | [], [] -> []
-  | t1 :: q1, t2 :: q2 -> Boolean.mk_ite ctx eb t1 t2 :: compile_if ctx eb q1 q2
-  | _, _ -> raise (Error InvalidTupleArityIf)
-
-(** [es] contains the arguments given to the operator. Each argument is (potentially) a tuple, 
-    although in practice, only the `if` operator is polymorphic and supports tuples. *)
-let compile_op ctx op (es : Expr.expr list list) =
-  match (op, es) with
-  | Op_eq, [ [ e1 ]; [ e2 ] ] -> [ Boolean.mk_eq ctx e1 e2 ]
-  | Op_neq, [ [ e1 ]; [ e2 ] ] ->
-      [ Boolean.mk_not ctx (Boolean.mk_eq ctx e1 e2) ]
-  | Op_lt, [ [ e1 ]; [ e2 ] ] -> [ Arithmetic.mk_lt ctx e1 e2 ]
-  | Op_le, [ [ e1 ]; [ e2 ] ] -> [ Arithmetic.mk_le ctx e1 e2 ]
-  | Op_gt, [ [ e1 ]; [ e2 ] ] -> [ Arithmetic.mk_gt ctx e1 e2 ]
-  | Op_ge, [ [ e1 ]; [ e2 ] ] -> [ Arithmetic.mk_ge ctx e1 e2 ]
-  | (Op_add | Op_add_f), e -> [ Arithmetic.mk_add ctx (extract_simple_args e) ]
-  | (Op_sub | Op_sub_f), [ [ e ] ] -> [ Arithmetic.mk_unary_minus ctx e ]
-  | (Op_sub | Op_sub_f), e -> [ Arithmetic.mk_sub ctx (extract_simple_args e) ]
-  | (Op_mul | Op_mul_f), e -> [ Arithmetic.mk_mul ctx (extract_simple_args e) ]
-  | (Op_div | Op_div_f), [ [ e1 ]; [ e2 ] ] -> [ Arithmetic.mk_div ctx e1 e2 ]
-  | Op_mod, [ [ e1 ]; [ e2 ] ] -> [ Arithmetic.Integer.mk_mod ctx e1 e2 ]
-  | Op_not, [ [ e ] ] -> [ Boolean.mk_not ctx e ]
-  | Op_and, e -> [ Boolean.mk_and ctx (extract_simple_args e) ]
-  | Op_or, e -> [ Boolean.mk_or ctx (extract_simple_args e) ]
-  | Op_impl, [ [ e1 ]; [ e2 ] ] -> [ Boolean.mk_implies ctx e1 e2 ]
-  (* Here e1 and e2 can be tuples! We generate an expression for each member of the tuple. *)
-  | Op_if, [ [ eb ]; e1; e2 ] -> compile_if ctx eb e1 e2
-  | _ -> raise (Error InvalidOpArguments)
-
-(****************)
-(* Compile prim *)
-(****************)
-
-let compile_prim ctx (f : Ident.t) (arg : Expr.expr) =
-  match f.name with
-  | "real_of_int" -> [ Arithmetic.Integer.mk_int2real ctx arg ]
-  | "int_of_real" -> [ Arithmetic.Real.mk_real2int ctx arg ]
-  | _ -> raise (Error UnknownPrim)
-
 (***************)
 (* Compile app *)
 (***************)
-
-let base_ty_to_sort ctx ty =
-  match ty with
-  | Tbool -> Boolean.mk_sort ctx
-  | Tint -> Arithmetic.Integer.mk_sort ctx
-  | Treal -> Arithmetic.Real.mk_sort ctx
 
 (** Defines [FuncDecl]s and updates [env]. *)
 let define_func_decl ctx env call (v : typed_var) =
   let int_s = Arithmetic.Integer.mk_sort ctx in
   let x, ty = v in
-  let name = ident_to_str_call x call in
-  let out_s = base_ty_to_sort ctx ty in
+  let name = Common.ident_to_str_call x call in
+  let out_s = Common.base_ty_to_sort ctx ty in
   let decl = FuncDecl.mk_func_decl_s ctx name [ int_s ] out_s in
   Hashtbl.add env.func_decls name decl;
   decl
@@ -143,17 +64,17 @@ let define_func_decls_node ctx env (node : t_node) =
 (** Returns the list of expressions seen as a tuple. *)
 let rec compile_expr_desc ctx env n_pre n_arr call (e : t_expr_desc) =
   match e with
-  | TE_const c -> [ compile_const ctx c ]
+  | TE_const c -> [ Common.compile_const ctx c ]
   | TE_op (op, es) ->
       let e = List.map (compile_expr ctx env n_pre n_arr call) es in
-      compile_op ctx op e
+      Common.compile_op ctx op e
   (* For prim we require exactly one argument. *)
   | TE_prim (_, []) -> raise (Error TooFewArguments)
   | TE_prim (f, [ arg ]) -> (
       (* This one argument cannot be a tuple. *)
       match compile_expr ctx env n_pre n_arr call arg with
       | [] (* Should never happen *) -> assert false
-      | [ arg ] -> compile_prim ctx f arg
+      | [ arg ] -> Common.compile_prim ctx f arg
       | _ -> raise (Error TooManyArguments))
   | TE_prim (_, _) -> raise (Error TooManyArguments)
   | TE_arrow (e1, e2) ->
@@ -163,7 +84,7 @@ let rec compile_expr_desc ctx env n_pre n_arr call (e : t_expr_desc) =
         Boolean.mk_eq ctx (n_global ctx)
           (Arithmetic.Integer.mk_numeral_i ctx n_arr)
       in
-      compile_if ctx etest einit egen
+      Common.compile_if ctx etest einit egen
   | TE_pre e -> compile_expr ctx env (n_pre + 1) n_arr call e
   (* To support nested tuples, we simply flatten them by flattening the list of lists. *)
   (* Why do one even uses nested tuples in Lustre??? *)
@@ -172,14 +93,14 @@ let rec compile_expr_desc ctx env n_pre n_arr call (e : t_expr_desc) =
       List.flatten e
   | TE_ident x ->
       let arg = arg_n ctx n_pre in
-      let xf = Hashtbl.find env.func_decls (ident_to_str_call x call) in
+      let xf = Hashtbl.find env.func_decls (Common.ident_to_str_call x call) in
       [ Expr.mk_app ctx xf [ arg ] ]
   (* We instantiate new variables for the node being called. *)
   (* We need the function defining the node to be already defined at this point. *)
   (* Hence the need for topological ordering of nodes. *)
   | TE_app (f, args) ->
       let eargs = List.map (compile_expr ctx env n_pre n_arr call) args in
-      let args = extract_simple_args eargs in
+      let args = Common.extract_simple_args eargs in
       let node = Hashtbl.find env.node_from_ids f in
       let outs_decls = compile_node ctx env node args in
       List.map (fun out -> Expr.mk_app ctx out [ arg_n ctx n_pre ]) outs_decls
@@ -197,7 +118,7 @@ and compile_expr ctx env n_pre n_arr call (e : t_expr) =
 and compile_eq ctx env call (eq : t_equation) =
   let exprs = compile_expr ctx env 0 0 call eq.teq_expr in
   let def_eq (x, expr) =
-    let name = ident_to_str_call x call in
+    let name = Common.ident_to_str_call x call in
     let def_x =
       let xn =
         Expr.mk_app ctx (Hashtbl.find env.func_decls name) [ n_global ctx ]
@@ -231,22 +152,6 @@ and compile_node ctx env (node : t_node) (args : Expr.expr list) =
   (* Returning unevaluated outputs because the evaluation depends on n_pre *)
   outputs
 
-(********************)
-(* Creating new env *)
-(********************)
-
-let init_node_from_ids nodes =
-  let node_from_ids = Hashtbl.create (List.length nodes) in
-  Hashtbl.replace_seq node_from_ids
-    (List.to_seq (List.map (fun n -> (n.tn_name, n)) nodes));
-  node_from_ids
-
-let init_node_calls nodes =
-  let node_calls = Hashtbl.create (List.length nodes) in
-  Hashtbl.replace_seq node_calls
-    (List.to_seq (List.map (fun n -> (n, 0)) nodes));
-  node_calls
-
 (** Compile a whole file. Returns
     - the [env] that was built during the compilation and contains the definitions,
     - the outputs of the main node, which should be checked for truth. *)
@@ -257,8 +162,8 @@ let compile_file ctx (f : t_file) (main : t_node) =
     {
       func_decls;
       func_defs = [];
-      node_from_ids = init_node_from_ids f;
-      node_calls = init_node_calls f;
+      node_from_ids = Common.init_node_from_ids f;
+      node_calls = Common.init_node_calls f;
     }
   in
 
