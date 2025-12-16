@@ -141,13 +141,20 @@ TODO
 
 = Current Status & Future Work
 
-== Lustre $=>$ SMT
+== Lustre $=>$ SMT: encoding from the subject (aka @scalingup)
 
-TODO encoding with `n`
+Reminder:
 
-Straightforward except two constructs:
-- handling tuples
-- handling function calls
+$
+  & "(initiation)"  && Delta(0) => P(0) \
+  & "(consecution)" && Delta(n) and Delta(n + 1) and P(n) => P(n+1)
+$
+
+Encoding is straighforward except:
+- tuples
+- node calls
+
+Teasing: \ I believe the additional presence of $Delta(n)$ on top of $Delta(n+1)$ is deeply tied to *$k$-induction*, which we are not doing here.
 
 == Lustre $=>$ SMT: tuples
 
@@ -230,30 +237,34 @@ In real-world projects (see #link("https://github.com/kind2-mc/kind2/discussions
 
 == Lustre $=>$ SMT: another encoding: transition system
 
-Transition system $(I, T)$ using primed variables, verifying a property P:
-$ I => P "and" P and T => P' $
+#text(size: 0.9em)[
+  Transition system $(I, T)$ using state variables and primed variables, verifying a property P:
+  $ I => P "and" P and T => P' $
 
-#let sem(x) = $bracket.l.stroked #x bracket.r.stroked$
+  #let sem(x) = $bracket.l.stroked #x bracket.r.stroked$
 
-*Handling $mono("pre") e$:* introduce a new state variable $S_"id"^mono("pre") = {mono("init") =$ #sym.emptyset$; space mono("next") = sem(e)}$
+  *Handling $mono("pre") e$:* introduce a new state variable $S_"id"^mono("pre") = {mono("init") =$ #sym.emptyset$; space mono("next") = sem(e)}$
 
-*Handling of $e -> e'$:* use $"ite"(S_i^(->), sem(e), sem(e'))$ with:
-- $S_0^(->) = {mono("init") = "true"; space mono("next") = "false"}$
-- $S_1^(->) = {mono("init") = "false"; space mono("next") = S_0^(->)}$
-- $S_2^(->) = {mono("init") = "false"; space mono("next") = S_1^(->)}$
-- ...
+  *Handling of $e -> e'$:* use $"ite"(S_i^(->), sem(e), sem(e'))$ with:
+  - $S_0^(->) = {mono("init") = "true"; space mono("next") = "false"}$
+  - $S_1^(->) = {mono("init") = "false"; space mono("next") = S_0^(->)}$
+  - $S_2^(->) = {mono("init") = "false"; space mono("next") = S_1^(->)}$
+  - ...
 
-We also need to make sure we have *at most one* of the $S_i^(->)$ to be true.
+  We also need to make sure we have *at most one* of the $S_i^(->)$ to be true.
 
-#sepa
+  #sepa
 
-$ #emoji.warning space.quad #st($Delta(n) and$) Delta(n+1) and P(n) => P(n+1) $
+  $ #emoji.warning space.quad #st($Delta(n) and$) Delta(n+1) and P(n) => P(n+1) $
 
-#align(center, text(
-  size: 0.8em,
-)[Even less precise, the consecution might fail because of *spurious counterexamples* (unreachable situations).])
+  #align(
+    center,
+    [Even less precise, the consecution might fail because of *spurious counterexamples* (unreachable situations), already the case before but less likely.],
+  )
+]
 
 #pagebreak()
 
 #set align(top)
+#set text(size: 0.8em)
 #bibliography("bibliography.bib", title: "References")
