@@ -8,6 +8,17 @@
 #let oran = rgb("#eb811b")
 #let sepa = align(center, line(length: 80%, stroke: oran))
 
+#let st(content) = context {
+  let width = measure(content).width
+  box[
+    #content
+    #place(
+      dy: -0.25em,
+      line(stroke: 2pt + oran, length: width),
+    )
+  ]
+}
+
 #show: metropolis-theme.with(aspect-ratio: "16-9", config-info(
   title: [#smallcaps(text(weight: "bold", size: 0.8em, "Loustrini"))#text(size: 0.8em, ":") #text(
       size: 0.7em,
@@ -120,6 +131,10 @@ $
   & F := F_0 and ... and F_i
 $
 
+== Learning invariants
+
+IC3 PDR vs Houdini / instantiation based -> Sorcar (pdr)
+
 == Learning invariants with H-Houdini @h-houdini
 
 TODO
@@ -128,9 +143,7 @@ TODO
 
 == Lustre $=>$ SMT
 
-TODO encoding
-
-TODO env
+TODO encoding with `n`
 
 Straightforward except two constructs:
 - handling tuples
@@ -214,6 +227,31 @@ In real-world projects (see #link("https://github.com/kind2-mc/kind2/discussions
 - modular reasoning
 - progressive refinements
 - ...
+
+== Lustre $=>$ SMT: another encoding: transition system
+
+Transition system $(I, T)$ using primed variables, verifying a property P:
+$ I => P "and" P and T => P' $
+
+#let sem(x) = $bracket.l.stroked #x bracket.r.stroked$
+
+*Handling $mono("pre") e$:* introduce a new state variable $S_"id"^mono("pre") = {mono("init") =$ #sym.emptyset$; space mono("next") = sem(e)}$
+
+*Handling of $e -> e'$:* use $"ite"(S_i^(->), sem(e), sem(e'))$ with:
+- $S_0^(->) = {mono("init") = "true"; space mono("next") = "false"}$
+- $S_1^(->) = {mono("init") = "false"; space mono("next") = S_0^(->)}$
+- $S_2^(->) = {mono("init") = "false"; space mono("next") = S_1^(->)}$
+- ...
+
+We also need to make sure we have *at most one* of the $S_i^(->)$ to be true.
+
+#sepa
+
+$ #emoji.warning space.quad #st($Delta(n) and$) Delta(n+1) and P(n) => P(n+1) $
+
+#align(center, text(
+  size: 0.8em,
+)[Even less precise, the consecution might fail because of *spurious counterexamples* (unreachable situations).])
 
 #pagebreak()
 
