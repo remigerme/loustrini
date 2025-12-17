@@ -1,0 +1,3 @@
+(executable
+ (name loustrini)
+ (libraries ast checking z3))

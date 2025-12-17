@@ -1,0 +1,17 @@
+(subdir
+ ic3
+ (executables
+  (names ic3 ic3_tuple)
+  (libraries z3)))
+
+(subdir
+ incr
+ (executable
+  (name incr)
+  (libraries z3)))
+
+(subdir
+ func_calls
+ (executable
+  (name func_calls)
+  (libraries z3)))
