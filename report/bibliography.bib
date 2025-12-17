@@ -1,0 +1,107 @@
+%%%%%%%%%%%%%%%%%%%%%%
+% INVARIANT LEARNING %
+%%%%%%%%%%%%%%%%%%%%%%
+
+@inproceedings{houdini,
+  author    = {Flanagan, Cormac and Leino, K. Rustan M.},
+  title     = {Houdini, an Annotation Assistant for ESC/Java},
+  year      = {2001},
+  isbn      = {3540417915},
+  publisher = {Springer-Verlag},
+  address   = {Berlin, Heidelberg},
+  abstract  = {A static program checker that performs modular checking can check one program module for errors without needing to analyze the entire program. Modular checking requires that each module be accompanied by annotations that specify the module. To help reduce the cost of writing specifications, this paper presents Houdini, an annotation assistant for the modular checker ESC/Java. To infer suitable ESC/Java annotations for a given program, Houdini generates a large number of candidate annotations and uses ESC/Java to verify or refute each of these annotations. The paper describes the design, implementation, and preliminary evaluation of Houdini.},
+  booktitle = {Proceedings of the International Symposium of Formal Methods Europe on Formal Methods for Increasing Software Productivity},
+  pages     = {500–517},
+  numpages  = {18},
+  series    = {FME '01}
+}
+
+@inproceedings{technique-invgen,
+  author    = {Tiwari, Ashish and Rue\ss{}, Harald and Sa\"{\i}di, Hassen and Shankar, Natarajan},
+  title     = {A Technique for Invariant Generation},
+  year      = {2001},
+  isbn      = {3540418652},
+  publisher = {Springer-Verlag},
+  address   = {Berlin, Heidelberg},
+  booktitle = {Proceedings of the 7th International Conference on Tools and Algorithms for the Construction and Analysis of Systems},
+  pages     = {113–127},
+  numpages  = {15},
+  series    = {TACAS 2001}
+}  
+
+@inproceedings{programverif-template-predabs,
+  author    = {Srivastava, Saurabh and Gulwani, Sumit},
+  title     = {Program verification using templates over predicate abstraction},
+  year      = {2009},
+  isbn      = {9781605583921},
+  publisher = {Association for Computing Machinery},
+  address   = {New York, NY, USA},
+  url       = {https://doi.org/10.1145/1542476.1542501},
+  doi       = {10.1145/1542476.1542501},
+  abstract  = {We address the problem of automatically generating invariants with quantified and boolean structure for proving the validity of given assertions or generating pre-conditions under which the assertions are valid. We present three novel algorithms, having different strengths, that combine template and predicate abstraction based formalisms to discover required sophisticated program invariants using SMT solvers.Two of these algorithms use an iterative approach to compute fixed-points (one computes a least fixed-point and the other computes a greatest fixed-point), while the third algorithm uses a constraint based approach to encode the fixed-point. The key idea in all these algorithms is to reduce the problem of invariant discovery to that of finding optimal solutions for unknowns (over conjunctions of some predicates from a given set) in a template formula such that the formula is valid.Preliminary experiments using our implementation of these algorithms show encouraging results over a benchmark of small but complicated programs. Our algorithms can verify program properties that, to our knowledge, have not been automatically verified before. In particular, our algorithms can generate full correctness proofs for sorting algorithms (which requires nested universally-existentially quantified invariants) and can also generate preconditions required to establish worst-case upper bounds of sorting algorithms. Furthermore, for the case of previously considered properties, in particular sortedness in sorting algorithms, our algorithms take less time than reported by previous techniques.},
+  booktitle = {Proceedings of the 30th ACM SIGPLAN Conference on Programming Language Design and Implementation},
+  pages     = {223–234},
+  numpages  = {12},
+  keywords  = {constraint-based fixed-point, iterative fixed-point, predicate abstraction, quantified invariants, smt solvers, template invariants, weakest preconditions},
+  location  = {Dublin, Ireland},
+  series    = {PLDI '09}
+} 
+
+@inproceedings{instantiation-based-invariant-discovery,
+  author    = {Kahsai, Temesghen
+               and Ge, Yeting
+               and Tinelli, Cesare},
+  editor    = {Bobaru, Mihaela
+               and Havelund, Klaus
+               and Holzmann, Gerard J.
+               and Joshi, Rajeev},
+  title     = {Instantiation-Based Invariant Discovery},
+  booktitle = {NASA Formal Methods},
+  year      = {2011},
+  publisher = {Springer Berlin Heidelberg},
+  address   = {Berlin, Heidelberg},
+  pages     = {192--206},
+  isbn      = {978-3-642-20398-5}
+}
+
+@inproceedings{h-houdini,
+  title     = {H-Houdini: Scalable Invariant Learning},
+  author    = {Dinesh, Sushant and Zhu, Yongye and Fletcher, Christopher W},
+  booktitle = {Proceedings of the 30th ACM International Conference on Architectural Support for Programming Languages and Operating Systems, Volume 1},
+  pages     = {603--618},
+  year      = {2025}
+}
+
+%%%%%%%%%%
+% LUSTRE %
+%%%%%%%%%%
+
+@article{lustre-tutorial,
+  title   = {A tutorial of lustre},
+  author  = {Halbwachs, Nicolas and Raymond, Pascal},
+  journal = {Lustre V4, January},
+  url     = {https://www-verimag.imag.fr/DIST-TOOLS/SYNCHRONE/lustre-v4/distrib/lustre_tutorial.pdf},
+  year    = {2002}
+}
+
+@inproceedings{scalingup,
+  author    = {Hagen, George and Tinelli, Cesare},
+  title     = {Scaling up the formal verification of Lustre programs with SMT-based techniques},
+  year      = {2008},
+  isbn      = {9781424427352},
+  publisher = {IEEE Press},
+  booktitle = {Proceedings of the 2008 International Conference on Formal Methods in Computer-Aided Design},
+  articleno = {15},
+  numpages  = {9},
+  location  = {Portland, Oregon},
+  series    = {FMCAD '08}
+}
+
+@inproceedings{kind2,
+  title        = {The Kind 2 model checker},
+  author       = {Champion, Adrien and Mebsout, Alain and Sticksel, Christoph and Tinelli, Cesare},
+  booktitle    = {International Conference on Computer Aided Verification},
+  pages        = {510--517},
+  year         = {2016},
+  organization = {Springer}
+}
