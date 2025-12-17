@@ -1,5 +1,5 @@
 open Z3
-open Env
+open Compile.Env_kind
 
 type error = NonBooleanProperty
 

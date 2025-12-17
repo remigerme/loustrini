@@ -1,5 +1,5 @@
 open Z3
-open Env_trans
+open Compile.Env_trans
 
 type error = NonBooleanProperty
 

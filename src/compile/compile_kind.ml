@@ -1,6 +1,6 @@
 open Ast.Typed_ast
 open Z3
-open Env
+open Env_kind
 
 type error =
   | TooFewArguments
