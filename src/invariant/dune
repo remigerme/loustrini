@@ -1,0 +1,3 @@
+(library
+ (name invariant)
+ (libraries compile z3))
