@@ -23,9 +23,11 @@ let rec compile_expr_desc ctx env idx_pre n_arr call (e : t_expr_desc) =
       | _ -> raise (Common.Error TooManyArguments))
   | TE_prim (_, _) -> raise (Common.Error TooManyArguments)
   | TE_pre e ->
-      let nexts = compile_expr ctx env (idx_pre + 1) n_arr call e in
+      let i = !idx_pre in
+      incr idx_pre;
+      let nexts = compile_expr ctx env idx_pre n_arr call e in
       let def_state (e : Expr.expr) =
-        let name = "S_pre_" ^ string_of_int idx_pre in
+        let name = "S_pre_" ^ string_of_int i in
         let sort = Expr.get_sort e in
         let state_var = { name; sort; init = None; next = e } in
         env.pre_vars <- state_var :: env.pre_vars;
@@ -124,6 +126,6 @@ let compile_file ctx (f : t_file) (main : t_node) =
   let args = List.map (var_to_expr ctx env 0) main.tn_input in
 
   (* Compiling the node, evaluating and conjuncting outputs to form the validity property *)
-  let outputs = compile_node ctx env 0 main args in
+  let outputs = compile_node ctx env (ref 0) main args in
   let prop = Boolean.mk_and ctx outputs in
   (env, prop)
