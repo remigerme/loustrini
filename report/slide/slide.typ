@@ -23,7 +23,7 @@
   title: [#smallcaps(text(weight: "bold", size: 0.8em, "Loustrini"))#text(size: 0.8em, ":") #text(
       size: 0.7em,
     )[A Lustre Model Checker using the H-Houdini Invariant Learning Algorithm]],
-  subtitle: "A very early presentation",
+  subtitle: "Or me learning about invariant learning algorithms",
   author: "Rémi Germe",
   date: datetime.today(),
 ))
@@ -57,16 +57,20 @@ $=>$ Loustrini is _not_ solver-agnostic (based on `Z3`).
 
 == Initial fiddling with SMT solvers: encoding programs
 
-Two encodings of the same Lustre program (`x = 1 -> pre x + 1; y = 1 -> pre (x + y); ok = y >= 0;`):
-
 #{
-  set text(size: 0.55em)
   grid(
     columns: (1fr, 1fr),
     column-gutter: 10pt,
-    row-gutter: 1.5em,
+    row-gutter: 1em,
     align: center,
-    ```smt2
+    [Two encodings of the same Lustre program:],
+    text(size: 0.6em, ```
+    x = 1 -> pre x + 1;
+    y = 1 -> pre (x + y);
+    ok = y >= 0;
+    ```),
+
+    text(size: 0.5em, ```smt2
     (define-fun-rec x_naive ((n Int)) Int
         (ite (= n 0) 1 (+ (x_naive (- n 1)) 1)))
     (define-fun-rec y_naive ((n Int)) Int
@@ -79,8 +83,8 @@ Two encodings of the same Lustre program (`x = 1 -> pre x + 1; y = 1 -> pre (x +
     (echo "consecution: unsat iff ok(n) => ok(n+1) is true:")
     (assert (and (>= n 0) (ok n) (not (ok (+ n 1)))))
     (check-sat)
-    ```,
-    ```smt2
+    ```),
+    text(size: 0.5em, ```smt2
     (define-fun init ((x Int) (y Int)) Bool (and (= x 1) (= y 1)))
 
     (define-fun trans ((x Int) (y Int) (nx Int) (ny Int)) Bool
@@ -99,7 +103,7 @@ Two encodings of the same Lustre program (`x = 1 -> pre x + 1; y = 1 -> pre (x +
                  (trans x y nx ny)
                  (not (ok ny))))
     (check-sat)
-    ```,
+    ```),
 
     [Z3 *timeouts* without providing a counterexample.],
 
@@ -134,6 +138,8 @@ $
 == Learning invariants
 
 IC3 PDR vs Houdini / instantiation based -> Sorcar (pdr)
+
+Top-down (PDR) or bottom-up
 
 == Learning invariants with H-Houdini @h-houdini
 
@@ -235,6 +241,8 @@ In real-world projects (see #link("https://github.com/kind2-mc/kind2/discussions
 - progressive refinements
 - ...
 
+This issue will *not* be addressed in the project.
+
 == Lustre $=>$ SMT: another encoding: transition system
 
 #text(size: 0.9em)[
@@ -263,8 +271,64 @@ In real-world projects (see #link("https://github.com/kind2-mc/kind2/discussions
   )
 ]
 
+== Instantiating invariants using templates @houdini @instantiation-based-invariant-discovery
+
+#let rel(x) = text(fill: rgb("e41deb"), $#x$)
+
+*Booleans.* $cal(I)_b ::= b = "true" | b = "false" | rel(b_1 = b_2) | rel(b_1 = not b_2)$
+
+*Integers.* $cal(I)_i ::= i diamond.small "cst" | rel(i_1 diamond.small i_2)$
+
+*Reals.* Same as for integers.
+
+Where:
+- $"cst" in {0, 1, -1} union {"constants of interest (hardcoded in the program)"}$
+- $diamond.small ::= space.thin >= | > | <= | < | = | !=$
+
+#v(1em)
+#align(center, [*SOUND* but absolutely not *COMPLETE*])
+
+== Instantiating invariants: need for positive examples
+
+Strategy: $(C and T => C') <==> C and T and not C'$ to see if $C$ is inductive (iff query $mono("UNSAT")$).
+
+Problem: *if $C$ is $mono("UNSAT")$* alone #text(size: 0.8em, [(e.g. $C = x >= 0 and x < 0$)]), we *cannot refine* $C$ any further.
+
+$=>$ @instantiation-based-invariant-discovery @h-houdini: use *positive examples* (concretely: some traces of the program) to first sift $C$
+
+Problem: initial state alone is not sufficient: $mono("pre")$ variables are not initialized
+
+#{
+  set text(size: 0.8em)
+  grid(
+    columns: (1fr, 2fr),
+    $x = 0 -> 1 -> "pre" "pre" x$,
+    [
+      - $x = "ite"(S_0^->, 0, "ite"(S_1^->, 1, S_1^"pre"))$
+      - $S_1^"pre" ' = S_0^"pre"$
+      - $S_0^"pre" ' = x$
+    ],
+  )
+}
+
+#{
+  set text(size: 0.8em)
+  table(
+    columns: (1fr,) * 6,
+    align: center,
+    $t$, $x$, $S_0^->$, $S_1^->$, $S_1^"pre"$, $S_0^"pre"$,
+    $0$, $0$, [true], [false], $diameter$, $diameter$,
+    $1$, $1$, [false], [true], $diameter$, $0$,
+    $2$, $0$, [false], [false], $0$, $1$,
+  )
+}
+
+$=>$ simulate the program for $k$ steps where $k$ denotes the max depth of pre statements
+
+TODO
+
 #pagebreak()
 
 #set align(top)
-#set text(size: 0.8em)
-#bibliography("bibliography.bib", title: "References")
+#set text(size: 0.7em)
+#bibliography("../bibliography.bib", title: "References")
