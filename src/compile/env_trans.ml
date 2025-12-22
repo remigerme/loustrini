@@ -17,6 +17,7 @@ type z3_env_t = {
   sort_from_ids : (Ast.Ident.t, Sort.sort) Hashtbl.t;
   node_from_ids : (Ast.Ident.t, Ast.Typed_ast.t_node) Hashtbl.t;
   node_calls : (Ast.Typed_ast.t_node, int) Hashtbl.t;
+  mutable max_depth_pre : int;
 }
 
 let print_env env =

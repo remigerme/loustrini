@@ -7,17 +7,18 @@ let var_to_expr ctx env call (v : typed_var) =
   let sort = Hashtbl.find env.sort_from_ids x in
   Expr.mk_const_s ctx (Common.ident_to_str_call x call) sort
 
-let rec compile_expr_desc ctx env idx_pre n_arr call (e : t_expr_desc) =
+let rec compile_expr_desc ctx env idx_pre n_arr call depth_pre (e : t_expr_desc)
+    =
   match e with
   | TE_const c -> [ Common.compile_const ctx c ]
   | TE_op (op, es) ->
-      let e = List.map (compile_expr ctx env idx_pre n_arr call) es in
+      let e = List.map (compile_expr ctx env idx_pre n_arr call depth_pre) es in
       Common.compile_op ctx op e
   (* For prim we require exactly one argument. *)
   | TE_prim (_, []) -> raise (Common.Error TooFewArguments)
   | TE_prim (f, [ arg ]) -> (
       (* This one argument cannot be a tuple. *)
-      match compile_expr ctx env idx_pre n_arr call arg with
+      match compile_expr ctx env idx_pre n_arr call depth_pre arg with
       | [] (* Should never happen *) -> assert false
       | [ arg ] -> Common.compile_prim ctx f arg
       | _ -> raise (Common.Error TooManyArguments))
@@ -25,7 +26,8 @@ let rec compile_expr_desc ctx env idx_pre n_arr call (e : t_expr_desc) =
   | TE_pre e ->
       let i = !idx_pre in
       incr idx_pre;
-      let nexts = compile_expr ctx env idx_pre n_arr call e in
+      env.max_depth_pre <- max env.max_depth_pre (depth_pre + 1);
+      let nexts = compile_expr ctx env idx_pre n_arr call (depth_pre + 1) e in
       let def_state (e : Expr.expr) =
         let name = "S_pre_" ^ string_of_int i in
         let sort = Expr.get_sort e in
@@ -37,28 +39,30 @@ let rec compile_expr_desc ctx env idx_pre n_arr call (e : t_expr_desc) =
   | TE_arrow (e1, e2) ->
       (* We must first define state_var because of the side effect. *)
       let state_var = arrow_state_var ctx env n_arr in
-      let einit = compile_expr ctx env idx_pre n_arr call e1 in
-      let egen = compile_expr ctx env idx_pre (n_arr + 1) call e2 in
+      let einit = compile_expr ctx env idx_pre n_arr call depth_pre e1 in
+      let egen = compile_expr ctx env idx_pre (n_arr + 1) call depth_pre e2 in
       Common.compile_if ctx (expr_of_state_var ctx state_var) einit egen
   | TE_tuple es ->
-      let e = List.map (compile_expr ctx env idx_pre n_arr call) es in
+      let e = List.map (compile_expr ctx env idx_pre n_arr call depth_pre) es in
       List.flatten e
   | TE_ident x ->
       let name = Common.ident_to_str_call x call in
       let sort = Hashtbl.find env.sort_from_ids x in
       [ Expr.mk_const_s ctx name sort ]
   | TE_app (f, args) ->
-      let eargs = List.map (compile_expr ctx env idx_pre n_arr call) args in
+      let eargs =
+        List.map (compile_expr ctx env idx_pre n_arr call depth_pre) args
+      in
       let args = Common.extract_simple_args eargs in
       let node = Hashtbl.find env.node_from_ids f in
       let outs = compile_node ctx env idx_pre node args in
       outs
 
-and compile_expr ctx env idx_pre n_arr call (e : t_expr) =
-  compile_expr_desc ctx env idx_pre n_arr call e.texpr_desc
+and compile_expr ctx env idx_pre n_arr call depth_pre (e : t_expr) =
+  compile_expr_desc ctx env idx_pre n_arr call depth_pre e.texpr_desc
 
 and compile_eq ctx env idx_pre call (eq : t_equation) =
-  let exprs = compile_expr ctx env idx_pre 0 call eq.teq_expr in
+  let exprs = compile_expr ctx env idx_pre 0 call 0 eq.teq_expr in
   let def_eq (x, expr) =
     let name = Common.ident_to_str_call x call in
     let sort = Hashtbl.find env.sort_from_ids x in
@@ -119,6 +123,7 @@ let compile_file ctx (f : t_file) (main : t_node) =
       sort_from_ids = init_sort_from_ids ctx f;
       node_from_ids = Common.init_node_from_ids f;
       node_calls = Common.init_node_calls f;
+      max_depth_pre = 0;
     }
   in
 

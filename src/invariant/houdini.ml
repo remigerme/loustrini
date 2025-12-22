@@ -45,7 +45,7 @@ let initial_sift_on_state solver eqs h =
 
 let initial_sift ctx env (h : Expr.expr list) =
   let solver = Solver.mk_solver ctx None in
-  let d = Simulation.get_max_depth_pre env in
+  let d = env.max_depth_pre in
   let trace = Simulation.get_trace ctx env d in
   List.fold_left
     (fun acc_h eqs -> initial_sift_on_state solver eqs acc_h)
