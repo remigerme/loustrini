@@ -21,8 +21,18 @@ let prove ctx env prop =
   (* Creating a solver *)
   let solver = Solver.mk_solver ctx None in
 
+  (* Trying to learn a strengthened inductive invariant *)
+  let inv = Invariant.Learn.learn ctx env prop in
+
+  (* Invariant implies desired property *)
+  let query_imp = mk_implies ctx (get_eqs ctx env @ inv) [ prop ] in
+  (match Solver.check solver [ query_imp ] with
+  | SATISFIABLE -> print_endline "sat"
+  | UNSATISFIABLE -> print_endline "unsat"
+  | UNKNOWN -> print_endline "unknown");
+
   (* Base case *)
-  let query0 = mk_implies ctx (get_eqs ctx env @ init ctx env) [ prop ] in
+  let query0 = mk_implies ctx (get_eqs ctx env @ init ctx env) inv in
   (match Solver.check solver [ query0 ] with
   | SATISFIABLE -> print_endline "sat"
   | UNSATISFIABLE -> print_endline "unsat"
@@ -32,9 +42,11 @@ let prove ctx env prop =
   let eqs = get_eqs ctx env in
   let eqs_prime = get_eqs_prime ctx env in
   let trans_eqs = trans ctx env in
-  let prop_prime = prime_expr ctx env prop in
-  let query_ind = mk_implies ctx (eqs @ eqs_prime @ trans_eqs) [ prop_prime ] in
-  match Solver.check solver [ query_ind ] with
+  let inv_prime = List.map (prime_expr ctx env) inv in
+  let query_cons =
+    mk_implies ctx (inv @ eqs @ eqs_prime @ trans_eqs) inv_prime
+  in
+  match Solver.check solver [ query_cons ] with
   | SATISFIABLE -> print_endline "sat"
   | UNSATISFIABLE -> print_endline "unsat"
   | UNKNOWN -> print_endline "unknown"
