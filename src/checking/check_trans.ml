@@ -22,7 +22,7 @@ let prove ctx env prop =
   let solver = Solver.mk_solver ctx None in
 
   (* Trying to learn a strengthened inductive invariant *)
-  let inv = Invariant.Learn.learn ctx env prop in
+  let inv = Invariant.Houdini.learn ctx env in
 
   (* Invariant implies desired property *)
   let query_imp = mk_implies ctx (get_eqs ctx env @ inv) [ prop ] in
