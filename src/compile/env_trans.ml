@@ -1,5 +1,6 @@
 open Z3
 
+type const_num_t = Int of int | Real of float
 type var_t = { name : string; sort : Sort.sort; def : Expr.expr }
 
 type state_var_t = {
@@ -18,6 +19,7 @@ type z3_env_t = {
   node_from_ids : (Ast.Ident.t, Ast.Typed_ast.t_node) Hashtbl.t;
   node_calls : (Ast.Typed_ast.t_node, int) Hashtbl.t;
   mutable max_depth_pre : int;
+  mutable hardcoded_numerals : const_num_t list;
 }
 
 let print_env env =
