@@ -1,10 +1,6 @@
 open Z3
 open Compile.Env_trans
 
-type error = NonBooleanProperty
-
-exception Error of error
-
 (** Helper as [Boolean.mk_implies] do not support lists of expressions. *)
 let mk_implies ctx (p : Expr.expr list) (q : Expr.expr list) =
   let nq = List.map (fun e -> Boolean.mk_not ctx e) q in
@@ -15,14 +11,21 @@ let prove ctx env prop =
   let () =
     match Sort.get_sort_kind (Expr.get_sort prop) with
     | BOOL_SORT -> ()
-    | _ -> raise (Error NonBooleanProperty)
+    | _ -> raise (Error "The property to check should be a boolean.")
   in
 
   (* Creating a solver *)
   let solver = Solver.mk_solver ctx None in
 
   (* Trying to learn a strengthened inductive invariant *)
-  let inv = Invariant.Houdini.learn ctx env in
+  (* TODO: INPUTS *)
+  let inv = Invariant.Houdini.learn ctx env [] in
+
+  (* Checking invariant is non-contradictory *)
+  (match Solver.check solver inv with
+  | SATISFIABLE -> ()
+  | UNSATISFIABLE -> raise (Error "The learned invariant is contradictory.")
+  | UNKNOWN -> raise (Error "Invariant is non-contradictory: unknown from Z3."));
 
   (* Invariant implies desired property *)
   let query_imp = mk_implies ctx (get_eqs ctx env @ inv) [ prop ] in
