@@ -1,6 +1,6 @@
 # Loustrini
 
-A Lustre model-checker using the H-Houdini invariant learning algorithm [1].
+A Lustre model-checker using the H-Houdini invariant learning algorithm.
 
 ## Installation
 
@@ -74,4 +74,4 @@ The skeleton of the project (see the [initial commit](https://github.com/remiger
 
 ## References
 
-- [1] Sushant Dinesh, Yongye Zhu, and Christopher W. Fletcher. 2025. H-Houdini: Scalable Invariant Learning. In Proceedings of the 30th ACM International Conference on Architectural Support for Programming Languages and Operating Systems, Volume 1 (ASPLOS '25). Association for Computing Machinery, New York, NY, USA, 603–618. https://doi.org/10.1145/3669940.3707263
+See [`bibliography.bib`](./report/bibliography.bib).
