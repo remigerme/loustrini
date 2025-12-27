@@ -76,9 +76,9 @@ let () =
 
     (* Original skeleton ends there *)
     let ctx = Z3.mk_context [] in
-    let env, prop = Compile.Compile_trans.compile_file ctx ft main in
-    Compile.Env_trans.print_env env;
-    Checking.Check_trans.prove ctx env prop;
+    let env, prop = Compile.Compile_kind.compile_file ctx ft main in
+    Compile.Env_kind.print_env env;
+    Checking.Check_kind.prove ctx env prop;
 
     (* Back to original skeleton *)
     exit 0
