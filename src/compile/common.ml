@@ -112,3 +112,21 @@ let init_node_calls nodes =
   Hashtbl.replace_seq node_calls
     (List.to_seq (List.map (fun n -> (n, 0)) nodes));
   node_calls
+
+let init_sort_from_ids ctx f =
+  let sort_from_ids = Hashtbl.create 50 in
+
+  let register_sort ctx (v : typed_var) =
+    let x, ty = v in
+    let sort = base_ty_to_sort ctx ty in
+    Hashtbl.replace sort_from_ids x sort
+  in
+
+  let register_sort_node node =
+    List.iter (register_sort ctx) node.tn_input;
+    List.iter (register_sort ctx) node.tn_local;
+    List.iter (register_sort ctx) node.tn_output
+  in
+
+  List.iter register_sort_node f;
+  sort_from_ids
