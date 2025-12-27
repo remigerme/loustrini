@@ -135,7 +135,7 @@ $
   & F := F_0 and ... and F_i
 $
 
-== Learning invariants
+== Learning invariants with Houdini @houdini and instantiation-based invariants @instantiation-based-invariant-discovery
 
 IC3 PDR vs Houdini / instantiation based -> Sorcar (pdr)
 
@@ -323,12 +323,39 @@ Problem: initial state alone is not sufficient: $mono("pre")$ variables are not 
   )
 }
 
-$=>$ simulate the program for $k$ steps where $k$ denotes the max depth of pre statements
+$=>$ simulate the program for $k$ steps (where $k$ denotes the max depth of $mono("pre")$ statements): _difficult_ with this encoding
 
-TODO
+Instead, we go back to *$Delta(n)$ encoding*:
+
+$=>$ no state variable so $Delta(0)$ should be enough to initialize the whole system #text(size: 0.8em)[(toplevel inputs are given default values to compute a trace)]...\ *except for properties refering n+1*, e.g. $P(n) = x(n) <= x(n+1)$
+
+- those properties were a pain in $(I, T)$ encoding anyway:
+#text(size: 0.9em, table(
+  columns: (1fr, 1fr),
+  stroke: gray,
+  align: center,
+  [$Delta(n)$ encoding], [$(I, T)$ encoding],
+  $P(n) = x(n) <= x(n+1)$, $P = x <= x'$,
+  $P(n+1) = x(n+1) <= x(n+2)$, [$P' = x' <=$* $x''$*],
+))
+
+- they require careful thinking:
+
+$
+  underbrace(Delta(n) and Delta(n+1), "do not constrain" x(n+2)) and P(n) => underbrace(P(n+1), "refers to" x(n+2)) ? " will fail, so still sound"
+$
+
+$=>$ strenghten our lhs with $Delta(n+2)$
+
 
 #pagebreak()
 
 #set align(top)
 #set text(size: 0.7em)
 #bibliography("../bibliography.bib", title: "References")
+
+
+
+
+- property referring to next states
+- simulation problem when using (I, T) encoding
