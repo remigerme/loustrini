@@ -8,8 +8,11 @@ let prove ctx env prop =
   Common.check_prop_is_bool prop;
 
   (* Trying to learn a strengthened inductive invariant *)
-  (* TODO INPUTS *)
-  let inv = Invariant.Houdini.learn ctx env [] in
+  (* For now, we artificially add the desired property to the set of inductive invariants. *)
+  let default_inputs = default_inputs ctx env in
+  let inv = prop :: Invariant.Houdini.learn ctx env default_inputs in
+  Printf.printf "Learned invariant (%d)\n" (List.length inv);
+  List.iteri (fun i e -> Printf.printf "%d %s\n" i (Expr.to_string e)) inv;
 
   (* Creating Z3 variables *)
   let solver = Solver.mk_solver ctx None in
