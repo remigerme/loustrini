@@ -14,6 +14,8 @@ type error =
 
 exception Error of error
 
+type toplevel_arg_t = { name : string; sort : Sort.sort }
+
 (*********)
 (* Utils *)
 (*********)
@@ -130,3 +132,11 @@ let init_sort_from_ids ctx f =
 
   List.iter register_sort_node f;
   sort_from_ids
+
+let init_toplevel_args ctx (main : t_node) =
+  List.map
+    (fun (x, ty) ->
+      let name = ident_to_str x in
+      let sort = base_ty_to_sort ctx ty in
+      { name; sort })
+    main.tn_input

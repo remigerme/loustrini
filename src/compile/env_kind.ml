@@ -22,6 +22,7 @@ type var_t = { name : string; sort : Sort.sort; def : Expr.expr }
 
 type z3_env_t = {
   mutable vars : var_t list;
+  toplevel_args : Common.toplevel_arg_t list;
   mutable hardcoded_numerals : const_num_t list;
   (* To handle all cases where we only have an Ast.Ident.t without a base type (e.g. TE_ident) *)
   sort_from_ids : (Ast.Ident.t, Sort.sort) Hashtbl.t;
@@ -56,6 +57,12 @@ let print_env env =
   Printf.printf "=== Z3 Environment ===\n";
   Printf.printf "\nVariables (%d):\n" (List.length env.vars);
   List.iter
-    (fun v -> Printf.printf "- %s: %s\n" v.name (Expr.to_string v.def))
+    (fun (v : var_t) ->
+      Printf.printf "- %s: %s\n" v.name (Expr.to_string v.def))
     env.vars;
+  Printf.printf "\nToplevel args (%d):\n" (List.length env.toplevel_args);
+  List.iter
+    (fun (v : Common.toplevel_arg_t) ->
+      Printf.printf "- %s: %s\n" v.name (Sort.to_string v.sort))
+    env.toplevel_args;
   Printf.printf "=======================\n"

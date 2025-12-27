@@ -130,6 +130,7 @@ let compile_file ctx (f : t_file) (main : t_node) =
   let env =
     {
       vars = [];
+      toplevel_args = Common.init_toplevel_args ctx main;
       hardcoded_numerals = [];
       sort_from_ids = Common.init_sort_from_ids ctx f;
       node_from_ids = Common.init_node_from_ids f;
