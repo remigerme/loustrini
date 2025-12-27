@@ -26,7 +26,14 @@ let decl_of_typed_var ctx call ((x, ty) : typed_var) =
 (** Returns the list of expressions seen as a tuple. *)
 let rec compile_expr_desc ctx env n_pre n_arr call (e : t_expr_desc) =
   match e with
-  | TE_const c -> [ Common.compile_const ctx c ]
+  | TE_const c ->
+      let add_if_missing x l = if not (List.mem x l) then x :: l else l in
+      env.hardcoded_numerals <-
+        (match c with
+        | Cint i -> add_if_missing (Int i) env.hardcoded_numerals
+        | Creal f -> add_if_missing (Real f) env.hardcoded_numerals
+        | Cbool _ -> env.hardcoded_numerals);
+      [ Common.compile_const ctx c ]
   | TE_op (op, es) ->
       let e = List.map (compile_expr ctx env n_pre n_arr call) es in
       Common.compile_op ctx op e
@@ -123,6 +130,7 @@ let compile_file ctx (f : t_file) (main : t_node) =
   let env =
     {
       vars = [];
+      hardcoded_numerals = [];
       sort_from_ids = Common.init_sort_from_ids ctx f;
       node_from_ids = Common.init_node_from_ids f;
       node_calls = Common.init_node_calls f;

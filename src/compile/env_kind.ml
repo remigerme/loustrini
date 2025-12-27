@@ -15,10 +15,14 @@ let n_global ctx = Expr.mk_const_s ctx "n" (Arithmetic.Integer.mk_sort ctx)
 (** Evaluate an expression for a given value of [n]. *)
 let eval_expr_at ctx expr n = Expr.substitute_one expr (n_global ctx) n
 
+(** For hardcoded numerals in the program. *)
+type const_num_t = Int of int | Real of float
+
 type var_t = { name : string; sort : Sort.sort; def : Expr.expr }
 
 type z3_env_t = {
   mutable vars : var_t list;
+  mutable hardcoded_numerals : const_num_t list;
   (* To handle all cases where we only have an Ast.Ident.t without a base type (e.g. TE_ident) *)
   sort_from_ids : (Ast.Ident.t, Sort.sort) Hashtbl.t;
   (* Storing node info *)
