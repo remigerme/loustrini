@@ -1,5 +1,5 @@
 open Z3
-open Compile.Env_trans
+open Compile.Env_kind
 
 type mode_t = Mint | Mreal
 
@@ -34,60 +34,43 @@ let comparison_operators ctx =
     Arithmetic.mk_lt ctx;
   ]
 
-let gen_inv_comp_cst ctx env mode name =
+(** Generate [x(n) op cst] where 
+    - [op] varies between all relevant binary operators,
+    - [cst] ranges over all relevant constants. *)
+let gen_inv_comp_cst ctx env mode (x : var_t) =
   let ops = comparison_operators ctx in
   let constants = constants ctx env mode in
-  let e = Arithmetic.Integer.mk_const_s ctx name in
+  let e = expr_of_var ctx x in
   let handle_op op = List.map (op e) constants in
   List.flatten (List.map handle_op ops)
 
-let gen_inv_comp_other ctx mode name_1 name_2 =
+let gen_inv_comp_other ctx (x : var_t) (y : var_t) =
   let ops = comparison_operators ctx in
-  let make_const name =
-    match mode with
-    | Mint -> Arithmetic.Integer.mk_const_s ctx name
-    | Mreal -> Arithmetic.Real.mk_const_s ctx name
-  in
-  let e1 = make_const name_1 in
-  let e2 = make_const name_2 in
-  List.map (fun op -> op e1 e2) ops
+  let ex = expr_of_var ctx x in
+  let ey = expr_of_var ctx y in
+  List.map (fun op -> op ex ey) ops
 
-(** [names] is the list of all names of integer (resp. real) variables:
-    - (primed) integer (resp. real) variables
-    - (primed) pre integer (resp. real) variables *)
-let gen_inv_for_names ctx env mode (names : string list) =
-  let consts = List.flatten (List.map (gen_inv_comp_cst ctx env mode) names) in
+(** [vars] is the list of all integer (resp. real) variables. *)
+let gen_inv_for_vars ctx env mode (vars : var_t list) =
+  let consts = List.flatten (List.map (gen_inv_comp_cst ctx env mode) vars) in
   let cartesian l =
     List.concat (List.map (fun e -> List.map (fun e' -> (e, e')) l) l)
   in
-  let paired_names = cartesian names in
+  let paired_vars = cartesian vars in
   let pairs =
     List.flatten
-      (List.map
-         (fun (n1, n2) -> gen_inv_comp_other ctx mode n1 n2)
-         paired_names)
+      (List.map (fun (x, y) -> gen_inv_comp_other ctx x y) paired_vars)
   in
   consts @ pairs
 
 (** Instantiate invariants using the following template:
     ii ::= i op c | i1 op i2
-    where i, i1, i2 denote integer (resp. real) (state) (primed) variables,
+    where i, i1, i2 denote integer (resp. real) variables,
     and op ::= >= | > | <= | < | = | !=
     and c ::= -1 | 0 | 1 | {any hardcoded constant in the program}. *)
 let gen_inv ctx env mode =
   let is_int s = Sort.equal s (Arithmetic.Integer.mk_sort ctx) in
   let is_real s = Sort.equal s (Arithmetic.Real.mk_sort ctx) in
   let filter = match mode with Mint -> is_int | Mreal -> is_real in
-  let vars =
-    List.filter_map
-      (fun (v : var_t) -> if filter v.sort then Some v.name else None)
-      env.vars
-  in
-  let pre_vars =
-    List.filter_map
-      (fun v -> if filter v.sort then Some v.name else None)
-      env.pre_vars
-  in
-  let names = vars @ pre_vars in
-  let names_prime = List.map name_prime names in
-  gen_inv_for_names ctx env mode (names @ names_prime)
+  let vars = List.filter (fun (v : var_t) -> filter v.sort) env.vars in
+  gen_inv_for_vars ctx env mode vars
