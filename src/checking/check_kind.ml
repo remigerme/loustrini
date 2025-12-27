@@ -1,52 +1,57 @@
 open Z3
 open Compile.Env_kind
 
-type error = NonBooleanProperty
-
-exception Error of error
-
-(** Helper as [Boolean.mk_implies] do not support lists of expressions. *)
-let mk_implies ctx (p : Expr.expr list) (q : Expr.expr list) =
-  let nq = List.map (fun e -> Boolean.mk_not ctx e) q in
-  Boolean.mk_and ctx (p @ nq)
-
-let eval_expr_with ctx expr n = Expr.substitute_one expr (n_global ctx) n
-
-let delta_incr ctx env n =
-  let exprs = List.map (fun e -> eval_expr_with ctx e n) env.func_defs in
-  Boolean.mk_and ctx exprs
+let eval_inv_with ctx inv n = List.map (fun h -> eval_expr_at ctx h n) inv
 
 let prove ctx env prop =
   (* We check that the given property is a boolean. *)
-  let () =
-    match Sort.get_sort_kind (Expr.get_sort prop) with
-    | BOOL_SORT -> ()
-    | _ -> raise (Error NonBooleanProperty)
-  in
+  Common.check_prop_is_bool prop;
 
-  (* Creating a solver *)
+  (* Trying to learn a strengthened inductive invariant *)
+  (* TODO INPUTS *)
+  let inv = Invariant.Houdini.learn ctx env [] in
+
+  (* Creating Z3 variables *)
   let solver = Solver.mk_solver ctx None in
-
-  (* Base case *)
   let zero = Arithmetic.Integer.mk_numeral_i ctx 0 in
-  let delta_incr0 = delta_incr ctx env zero in
-  let p0 = eval_expr_with ctx prop zero in
-  let query0 = mk_implies ctx [ delta_incr0 ] [ p0 ] in
-  (match Solver.check solver [ query0 ] with
-  | SATISFIABLE -> print_endline "sat"
-  | UNSATISFIABLE -> print_endline "unsat"
-  | UNKNOWN -> print_endline "unknown");
+  let one = Arithmetic.Integer.mk_numeral_i ctx 1 in
+  let n = Arithmetic.Integer.mk_const_s ctx "n" in
+  let n_plus_1 = Arithmetic.mk_add ctx [ n; one ] in
+
+  (* Creating Z3 system expressions *)
+  let d_n = eqs ctx env n in
+  let d_n_plus_1 = eqs ctx env n_plus_1 in
+  let inv_n = eval_inv_with ctx inv n in
+  let inv_n_plus_1 = eval_inv_with ctx inv n_plus_1 in
+
+  (* Checking invariant is non-contradictory *)
+  let q_non_contradictory = d_n @ d_n_plus_1 @ inv_n in
+  (match Solver.check solver q_non_contradictory with
+  | SATISFIABLE -> print_endline "Learned invariant is non-contradictory."
+  | UNSATISFIABLE -> raise (Error "The learned invariant is contradictory.")
+  | UNKNOWN -> raise (Error "Invariant is non-contradictory: unknown from Z3."));
+
+  (* Invariant implies desired property *)
+  let q_imp = Invariant.Common.mk_implies ctx (d_n @ inv_n) [ prop ] in
+  (match Solver.check solver [ q_imp ] with
+  | SATISFIABLE ->
+      print_endline "ERROR: learned invariant does not imply desired property."
+  | UNSATISFIABLE -> print_endline "Learned invariant implies desired property."
+  | UNKNOWN -> raise (Error "Invariant implies goal property: unknown from Z3."));
+
+  (* Initiation *)
+  let d_0 = eqs ctx env zero in
+  let inv_0 = eval_inv_with ctx inv zero in
+  let q_0 = Invariant.Common.mk_implies ctx d_0 inv_0 in
+  (match Solver.check solver [ q_0 ] with
+  | SATISFIABLE -> print_endline "ERROR: Initiation failed (SAT)."
+  | UNSATISFIABLE -> print_endline "SUCCESS: Initiation holds (UNSAT)."
+  | UNKNOWN -> raise (Error "Initiation: unknown from Z3"));
 
   (* Consecution *)
-  let one = Arithmetic.Integer.mk_numeral_i ctx 1 in
-  let n = Expr.mk_const_s ctx "n" (Arithmetic.Integer.mk_sort ctx) in
-  let n_plus_1 = Arithmetic.mk_add ctx [ n; one ] in
-  let dn = delta_incr ctx env n in
-  let dn_plus_1 = delta_incr ctx env n_plus_1 in
-  let pn = eval_expr_with ctx prop n in
-  let pn_plus_1 = eval_expr_with ctx prop n_plus_1 in
-  let query_ind = mk_implies ctx [ dn; dn_plus_1; pn ] [ pn_plus_1 ] in
-  match Solver.check solver [ query_ind ] with
-  | SATISFIABLE -> print_endline "sat"
-  | UNSATISFIABLE -> print_endline "unsat"
-  | UNKNOWN -> print_endline "unknown"
+  let hyp_n = d_n @ d_n_plus_1 @ inv_n in
+  let q_cons = Invariant.Common.mk_implies ctx hyp_n inv_n_plus_1 in
+  match Solver.check solver [ q_cons ] with
+  | SATISFIABLE -> print_endline "ERROR: Consecution failed (SAT)."
+  | UNSATISFIABLE -> print_endline "SUCCESS: Consecution holds (UNSAT)."
+  | UNKNOWN -> raise (Error "Consecution: unknown from Z3")
