@@ -14,7 +14,9 @@ let eval_n_plus_1 ctx e = eval_expr_at ctx e (n_plus_1_global ctx)
 *)
 
 (** Prune [h] according to evaluation of [cex] on expressions of [h(n)].
-    For consecution, use [n = n_plus_1], for initial sifting, use [n = zero, one, ...]. *)
+    - for consecution, use [n = n_plus_1],
+    - for initial sifting, use [n = zero, one, ...],
+    - for third-phase pruning, use [n]. *)
 let prune ctx (h : Expr.expr list) (n : Expr.expr) (cex : Model.model) =
   List.filter
     (fun e ->
@@ -26,25 +28,9 @@ let prune ctx (h : Expr.expr list) (n : Expr.expr) (cex : Model.model) =
       | None -> true)
     h
 
-(* *)
-
-let step solver ctx (h : Expr.expr list) =
-  let h_n_plus_1 = List.map (eval_n_plus_1 ctx) h in
-  (* The solver is already loaded with system equations *)
-  let q_cons = Common.mk_implies ctx h h_n_plus_1 in
-  match Solver.check solver [ q_cons ] with
-  | SATISFIABLE ->
-      let cex = Option.get (Solver.get_model solver) in
-      Some (prune ctx h (n_plus_1_global ctx) cex)
-  | UNSATISFIABLE -> None
-  | UNKNOWN -> raise (Error "Z3 unknown in second loop of Houdini")
-
-(** Iterates until [h] reaches a fixpoint (the empty list in the worst case).
-    [solver] must be loaded with [d_n] and [d_n_plus_1]. *)
-let rec loop solver ctx (h : Expr.expr list) =
-  match step solver ctx h with
-  | None -> h
-  | Some h_pruned -> loop solver ctx h_pruned
+(***************)
+(* FIRST PHASE *)
+(***************)
 
 let step_init solver ctx h k =
   let k_var = Arithmetic.Integer.mk_numeral_i ctx k in
@@ -75,10 +61,57 @@ let initial_sift ctx env inputs (h : Expr.expr list) =
   let range_k = List.init d (fun x -> x) in
   List.fold_left (fun acc_h k -> loop_init solver ctx acc_h k) h range_k
 
+(****************)
+(* SECOND PHASE *)
+(****************)
+
+let step solver ctx (h : Expr.expr list) =
+  let h_n_plus_1 = List.map (eval_n_plus_1 ctx) h in
+  (* The solver is already loaded with system equations *)
+  let q_cons = Common.mk_implies ctx h h_n_plus_1 in
+  match Solver.check solver [ q_cons ] with
+  | SATISFIABLE ->
+      let cex = Option.get (Solver.get_model solver) in
+      Some (prune ctx h (n_plus_1_global ctx) cex)
+  | UNSATISFIABLE -> None
+  | UNKNOWN -> raise (Error "Z3 unknown in second loop of Houdini")
+
+(** Iterates until [h] reaches a fixpoint (the empty list in the worst case).
+    [solver] must be loaded with [d_n] and [d_n_plus_1]. *)
+let rec loop solver ctx (h : Expr.expr list) =
+  match step solver ctx h with
+  | None -> h
+  | Some h_pruned -> loop solver ctx h_pruned
+
+(***************)
+(* THIRD PHASE *)
+(***************)
+
+let step_third_phase solver ctx (h : Expr.expr list) =
+  match Solver.check solver [ Common.mk_implies ctx [] h ] with
+  | SATISFIABLE ->
+      let cex = Option.get (Solver.get_model solver) in
+      Some (prune ctx h (n_global ctx) cex)
+  | UNSATISFIABLE -> None
+  | UNKNOWN -> raise (Error "Z3 unknown when performing third phase pruning")
+
+(** Returns the list of all predicates to be removed from [h] afterwards. 
+    [solver] must be loaded with [d_n] at this point. *)
+let rec loop_third_phase solver ctx (h : Expr.expr list) =
+  match step_third_phase solver ctx h with
+  | None -> h
+  | Some h_pruned -> loop_third_phase solver ctx h_pruned
+
+(********)
+(* MAIN *)
+(********)
+
 let learn ctx env inputs =
   let h = Generation.gen_inv ctx env in
+
   (* Here, we perform the initial sift of h based on positive examples, that is, some trace of execution. *)
   let h = initial_sift ctx env inputs h in
+
   (* We need to make sure h is satisfiable else the implication is vacuously true. *)
   (* We also load the solver for future use. *)
   let solver = Solver.mk_solver ctx None in
@@ -96,4 +129,12 @@ let learn ctx env inputs =
         (Error
            "Z3 unknown when checking invariant candidates are \
             non-contradictory after initial sift"));
-  loop solver ctx h
+  let h = loop solver ctx h in
+
+  (* (Optional) third-phase: pruning obvious predicates *)
+  Solver.reset solver;
+  Solver.add solver d_n;
+  let to_remove = loop_third_phase solver ctx h in
+  (* https://stackoverflow.com/questions/22132458/library-function-to-find-difference-between-two-lists-ocaml *)
+  let diff l1 l2 = List.filter (fun x -> not (List.mem x l2)) l1 in
+  diff h to_remove
