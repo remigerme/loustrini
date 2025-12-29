@@ -1,0 +1,17 @@
+node fib_inconclusive() returns (x : int);
+let
+    x = 0 -> 1 -> ((pre x) + (pre pre x));
+tel
+
+node fib() returns (x: int);
+var p, pp : int;
+let
+    p = 0 -> pre x;
+    pp = 0 -> pre p;
+    x = 0 -> 1 -> p + pp;
+tel
+
+node check() returns (ok : bool);
+let
+    ok = fib() >= 0;
+tel
