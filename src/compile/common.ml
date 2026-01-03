@@ -29,10 +29,10 @@ let ident_to_str_call (x : Ident.t) (call : int) =
 
 (** Flatten a list of expressions assuming each expression is simple (not a tuple).
     Else it cannot be flattened and an error is emitted. *)
-let rec extract_simple_args (e : Expr.expr list list) =
-  match e with
+let rec extract_simple_args (r : (Expr.expr * string list) list list) =
+  match r with
   | [] -> []
-  | [ x ] :: q -> x :: extract_simple_args q
+  | [ (e, deps) ] :: t -> (e, deps) :: extract_simple_args t
   | _ -> raise (Error ExpectedValueGotTuple)
 
 let base_ty_to_sort ctx ty =
@@ -57,37 +57,47 @@ let compile_const ctx (c : const) =
 
 (** `if` is polymorphic in Lustre and supports tuples. And we consider it is the only polymorphic operator 
     (cf. https://www-verimag.imag.fr/DIST-TOOLS/SYNCHRONE/lustre-v4/distrib/lustre_tutorial.pdf).
-    We emit one [Expr.expr] per member of the tuple. *)
-let rec compile_if ctx eb (e1 : Expr.expr list) (e2 : Expr.expr list) =
-  match (e1, e2) with
+    We emit one [Expr.expr * string list] per member of the tuple. *)
+let rec compile_if ctx ((eb, db) : Expr.expr * string list)
+    (e1s : (Expr.expr * string list) list)
+    (e2s : (Expr.expr * string list) list) =
+  match (e1s, e2s) with
   | [], [] -> []
-  | t1 :: q1, t2 :: q2 -> Boolean.mk_ite ctx eb t1 t2 :: compile_if ctx eb q1 q2
+  | (e1, d1) :: t1, (e2, d2) :: t2 ->
+      (Boolean.mk_ite ctx eb e1 e2, db @ d1 @ d2)
+      :: compile_if ctx (eb, db) t1 t2
   | _, _ -> raise (Error InvalidTupleArityIf)
 
-(** [es] contains the arguments given to the operator. Each argument is (potentially) a tuple, 
-    although in practice, only the `if` operator is polymorphic and supports tuples. *)
-let compile_op ctx op (es : Expr.expr list list) =
-  match (op, es) with
-  | Op_eq, [ [ e1 ]; [ e2 ] ] -> [ Boolean.mk_eq ctx e1 e2 ]
-  | Op_neq, [ [ e1 ]; [ e2 ] ] ->
-      [ Boolean.mk_not ctx (Boolean.mk_eq ctx e1 e2) ]
-  | Op_lt, [ [ e1 ]; [ e2 ] ] -> [ Arithmetic.mk_lt ctx e1 e2 ]
-  | Op_le, [ [ e1 ]; [ e2 ] ] -> [ Arithmetic.mk_le ctx e1 e2 ]
-  | Op_gt, [ [ e1 ]; [ e2 ] ] -> [ Arithmetic.mk_gt ctx e1 e2 ]
-  | Op_ge, [ [ e1 ]; [ e2 ] ] -> [ Arithmetic.mk_ge ctx e1 e2 ]
-  | (Op_add | Op_add_f), e -> [ Arithmetic.mk_add ctx (extract_simple_args e) ]
-  | (Op_sub | Op_sub_f), [ [ e ] ] -> [ Arithmetic.mk_unary_minus ctx e ]
-  | (Op_sub | Op_sub_f), e -> [ Arithmetic.mk_sub ctx (extract_simple_args e) ]
-  | (Op_mul | Op_mul_f), e -> [ Arithmetic.mk_mul ctx (extract_simple_args e) ]
-  | (Op_div | Op_div_f), [ [ e1 ]; [ e2 ] ] -> [ Arithmetic.mk_div ctx e1 e2 ]
-  | Op_mod, [ [ e1 ]; [ e2 ] ] -> [ Arithmetic.Integer.mk_mod ctx e1 e2 ]
-  | Op_not, [ [ e ] ] -> [ Boolean.mk_not ctx e ]
-  | Op_and, e -> [ Boolean.mk_and ctx (extract_simple_args e) ]
-  | Op_or, e -> [ Boolean.mk_or ctx (extract_simple_args e) ]
-  | Op_impl, [ [ e1 ]; [ e2 ] ] -> [ Boolean.mk_implies ctx e1 e2 ]
+(* [res] contains the compiled arguments given to the operator and their dependencies.
+    Each argument is (potentially) a tuple, although in practice, only the `if` operator is polymorphic and supports tuples.
+    Note: this comment is not a docstring as it exposes an ocamlformat bug and this is way above my paygrade. *)
+let compile_op ctx op (res : (Expr.expr * string list) list list) = (
+  match (op, res) with
+  | Op_eq, [ [ (e1, d1) ]; [ (e2, d2) ] ]  -> [ (Boolean.mk_eq ctx e1 e2, d1 @ d2) ]
+  | Op_neq, [ [ (e1, d1) ]; [ (e2, d2) ] ] -> [ (Boolean.mk_not ctx (Boolean.mk_eq ctx e1 e2), d1 @ d2) ]
+  | Op_lt, [ [ (e1, d1) ]; [ (e2, d2) ] ]  -> [ (Arithmetic.mk_lt ctx e1 e2, d1 @ d2) ]
+  | Op_le, [ [ (e1, d1) ]; [ (e2, d2) ] ]  -> [ (Arithmetic.mk_le ctx e1 e2, d1 @ d2) ]
+  | Op_gt, [ [ (e1, d1) ]; [ (e2, d2) ] ]  -> [ (Arithmetic.mk_gt ctx e1 e2, d1 @ d2) ]
+  | Op_ge, [ [ (e1, d1) ]; [ (e2, d2) ] ]  -> [ (Arithmetic.mk_ge ctx e1 e2, d1 @ d2) ]
+  | (Op_add | Op_add_f), r                 -> let args, deps = List.split (extract_simple_args r) in 
+                                              [ Arithmetic.mk_add ctx args, List.flatten deps ]
+  | (Op_sub | Op_sub_f), [ [ (e, d) ] ]    -> [ (Arithmetic.mk_unary_minus ctx e, d) ]
+  | (Op_sub | Op_sub_f), r                 -> let args, deps = List.split (extract_simple_args r) in
+                                              [ Arithmetic.mk_sub ctx args, List.flatten deps ]
+  | (Op_mul | Op_mul_f), r                 -> let args, deps = List.split (extract_simple_args r) in 
+                                              [ Arithmetic.mk_mul ctx args, List.flatten deps ]
+  | (Op_div | Op_div_f), [ [ (e1, d1) ]; [ (e2, d2) ] ] -> [ (Arithmetic.mk_div ctx e1 e2, d1 @ d2) ]
+  | Op_mod, [ [ (e1, d1) ]; [ (e2, d2) ] ]  -> [ (Arithmetic.Integer.mk_mod ctx e1 e2, d1 @ d2) ]
+  | Op_not, [ [ (e, d) ] ]                  -> [ (Boolean.mk_not ctx e, d) ]
+  | Op_and, r                               -> let args, deps = List.split (extract_simple_args r) in
+                                               [ Boolean.mk_and ctx args, List.flatten deps ]
+  | Op_or, r                                -> let args, deps = List.split (extract_simple_args r) in 
+                                               [ Boolean.mk_or ctx args, List.flatten deps ]
+  | Op_impl, [ [ (e1, d1) ]; [ (e2, d2) ] ] -> [ (Boolean.mk_implies ctx e1 e2, d1 @ d2) ]
   (* Here e1 and e2 can be tuples! We generate an expression for each member of the tuple. *)
-  | Op_if, [ [ eb ]; e1; e2 ] -> compile_if ctx eb e1 e2
-  | _ -> raise (Error InvalidOpArguments)
+  | Op_if, [ [ (eb, db) ]; e1; e2 ]         -> compile_if ctx (eb, db) e1 e2
+  | _                                       -> raise (Error InvalidOpArguments)
+) [@@ocamlformat "disable"]
 
 (****************)
 (* Compile prim *)
@@ -95,8 +105,8 @@ let compile_op ctx op (es : Expr.expr list list) =
 
 let compile_prim ctx (f : Ident.t) (arg : Expr.expr) =
   match f.name with
-  | "real_of_int" -> [ Arithmetic.Integer.mk_int2real ctx arg ]
-  | "int_of_real" -> [ Arithmetic.Real.mk_real2int ctx arg ]
+  | "real_of_int" -> Arithmetic.Integer.mk_int2real ctx arg
+  | "int_of_real" -> Arithmetic.Real.mk_real2int ctx arg
   | _ -> raise (Error UnknownPrim)
 
 (********************)

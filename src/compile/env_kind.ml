@@ -28,6 +28,8 @@ type z3_env_t = {
   mutable vars : var_t list;
   toplevel_args : Common.toplevel_arg_t list;
   mutable hardcoded_numerals : const_num_t list;
+  (* Slicing oracle for H-Houdini *)
+  depends_on : (string, string list) Hashtbl.t;
   (* To handle all cases where we only have an Ast.Ident.t without a base type (e.g. TE_ident) *)
   sort_from_ids : (Ast.Ident.t, Sort.sort) Hashtbl.t;
   (* Storing node info *)
