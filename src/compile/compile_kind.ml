@@ -74,11 +74,11 @@ let rec compile_expr_desc ctx env n_pre n_arr call (e : t_expr_desc) =
       let sort = Hashtbl.find env.sort_from_ids x in
       let xf = decl_of_name ctx name sort in
       let arg = arg_n ctx n_pre in
-      let deps_of_name = Hashtbl.find env.depends_on name in
       (* We include the dependencies of this identifier if it is not under a pre. *)
       (* In that case, it is just a wire. This works because of TOPOLOGICAL ORDERING. *)
       let deps =
-        if n_pre = 0 then add_if_missing name deps_of_name else [ name ]
+        if n_pre = 0 then add_if_missing name (Hashtbl.find env.depends_on name)
+        else [ name ]
       in
       [ (FuncDecl.apply xf [ arg ], deps) ]
   (* We compile recursively node calls (no memoization). *)

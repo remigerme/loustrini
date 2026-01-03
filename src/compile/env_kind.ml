@@ -82,7 +82,11 @@ let print_env env =
   Printf.printf "\nVariables (%d):\n" (List.length env.vars);
   List.iter
     (fun (v : var_t) ->
-      Printf.printf "- %s: %s\n" v.name (Expr.to_string v.def))
+      Printf.printf "- %s: \n\t- %s\n\t- %s\n" v.name (Expr.to_string v.def)
+        (List.fold_left
+           (fun acc d -> if acc = "" then d else acc ^ ", " ^ d)
+           ""
+           (Hashtbl.find env.depends_on v.name)))
     env.vars;
   Printf.printf "\nToplevel args (%d):\n" (List.length env.toplevel_args);
   List.iter

@@ -20,6 +20,25 @@ type toplevel_arg_t = { name : string; sort : Sort.sort }
 (* Utils *)
 (*********)
 
+let rec concat_no_dup l l' =
+  match l' with
+  | [] -> l
+  | hd :: tl ->
+      if List.mem hd l then concat_no_dup l tl else concat_no_dup (hd :: l) tl
+
+(** Concatenate [l'] to [l] without adding duplicated elements.
+    If [l] contains duplicates, the final results will also contain duplicates. *)
+let ( @! ) = concat_no_dup
+
+let flatten_no_dup l =
+  let add_if_missing_elt x l = if List.mem x l then l else x :: l in
+  let rec add_if_missing l l' =
+    match l with
+    | [] -> l'
+    | hd :: tl -> add_if_missing tl (add_if_missing_elt hd l')
+  in
+  List.fold_left (fun acc l -> add_if_missing l acc) [] l
+
 (** Retrieve string identifier of a node. For streams, use [ident_to_str_call] instead. *)
 let ident_to_str (x : Ident.t) = Printf.sprintf "%s__%i" x.name x.id
 
@@ -64,7 +83,7 @@ let rec compile_if ctx ((eb, db) : Expr.expr * string list)
   match (e1s, e2s) with
   | [], [] -> []
   | (e1, d1) :: t1, (e2, d2) :: t2 ->
-      (Boolean.mk_ite ctx eb e1 e2, db @ d1 @ d2)
+      (Boolean.mk_ite ctx eb e1 e2, db @! d1 @! d2)
       :: compile_if ctx (eb, db) t1 t2
   | _, _ -> raise (Error InvalidTupleArityIf)
 
@@ -73,27 +92,27 @@ let rec compile_if ctx ((eb, db) : Expr.expr * string list)
     Note: this comment is not a docstring as it exposes an ocamlformat bug and this is way above my paygrade. *)
 let compile_op ctx op (res : (Expr.expr * string list) list list) = (
   match (op, res) with
-  | Op_eq, [ [ (e1, d1) ]; [ (e2, d2) ] ]  -> [ (Boolean.mk_eq ctx e1 e2, d1 @ d2) ]
-  | Op_neq, [ [ (e1, d1) ]; [ (e2, d2) ] ] -> [ (Boolean.mk_not ctx (Boolean.mk_eq ctx e1 e2), d1 @ d2) ]
-  | Op_lt, [ [ (e1, d1) ]; [ (e2, d2) ] ]  -> [ (Arithmetic.mk_lt ctx e1 e2, d1 @ d2) ]
-  | Op_le, [ [ (e1, d1) ]; [ (e2, d2) ] ]  -> [ (Arithmetic.mk_le ctx e1 e2, d1 @ d2) ]
-  | Op_gt, [ [ (e1, d1) ]; [ (e2, d2) ] ]  -> [ (Arithmetic.mk_gt ctx e1 e2, d1 @ d2) ]
-  | Op_ge, [ [ (e1, d1) ]; [ (e2, d2) ] ]  -> [ (Arithmetic.mk_ge ctx e1 e2, d1 @ d2) ]
+  | Op_eq, [ [ (e1, d1) ]; [ (e2, d2) ] ]  -> [ (Boolean.mk_eq ctx e1 e2, d1 @! d2) ]
+  | Op_neq, [ [ (e1, d1) ]; [ (e2, d2) ] ] -> [ (Boolean.mk_not ctx (Boolean.mk_eq ctx e1 e2), d1 @! d2) ]
+  | Op_lt, [ [ (e1, d1) ]; [ (e2, d2) ] ]  -> [ (Arithmetic.mk_lt ctx e1 e2, d1 @! d2) ]
+  | Op_le, [ [ (e1, d1) ]; [ (e2, d2) ] ]  -> [ (Arithmetic.mk_le ctx e1 e2, d1 @! d2) ]
+  | Op_gt, [ [ (e1, d1) ]; [ (e2, d2) ] ]  -> [ (Arithmetic.mk_gt ctx e1 e2, d1 @! d2) ]
+  | Op_ge, [ [ (e1, d1) ]; [ (e2, d2) ] ]  -> [ (Arithmetic.mk_ge ctx e1 e2, d1 @! d2) ]
   | (Op_add | Op_add_f), r                 -> let args, deps = List.split (extract_simple_args r) in 
-                                              [ Arithmetic.mk_add ctx args, List.flatten deps ]
+                                              [ Arithmetic.mk_add ctx args, flatten_no_dup deps ]
   | (Op_sub | Op_sub_f), [ [ (e, d) ] ]    -> [ (Arithmetic.mk_unary_minus ctx e, d) ]
   | (Op_sub | Op_sub_f), r                 -> let args, deps = List.split (extract_simple_args r) in
-                                              [ Arithmetic.mk_sub ctx args, List.flatten deps ]
+                                              [ Arithmetic.mk_sub ctx args, flatten_no_dup deps ]
   | (Op_mul | Op_mul_f), r                 -> let args, deps = List.split (extract_simple_args r) in 
-                                              [ Arithmetic.mk_mul ctx args, List.flatten deps ]
-  | (Op_div | Op_div_f), [ [ (e1, d1) ]; [ (e2, d2) ] ] -> [ (Arithmetic.mk_div ctx e1 e2, d1 @ d2) ]
-  | Op_mod, [ [ (e1, d1) ]; [ (e2, d2) ] ]  -> [ (Arithmetic.Integer.mk_mod ctx e1 e2, d1 @ d2) ]
+                                              [ Arithmetic.mk_mul ctx args, flatten_no_dup deps ]
+  | (Op_div | Op_div_f), [ [ (e1, d1) ]; [ (e2, d2) ] ] -> [ (Arithmetic.mk_div ctx e1 e2, d1 @! d2) ]
+  | Op_mod, [ [ (e1, d1) ]; [ (e2, d2) ] ]  -> [ (Arithmetic.Integer.mk_mod ctx e1 e2, d1 @! d2) ]
   | Op_not, [ [ (e, d) ] ]                  -> [ (Boolean.mk_not ctx e, d) ]
   | Op_and, r                               -> let args, deps = List.split (extract_simple_args r) in
-                                               [ Boolean.mk_and ctx args, List.flatten deps ]
+                                               [ Boolean.mk_and ctx args, flatten_no_dup deps ]
   | Op_or, r                                -> let args, deps = List.split (extract_simple_args r) in 
-                                               [ Boolean.mk_or ctx args, List.flatten deps ]
-  | Op_impl, [ [ (e1, d1) ]; [ (e2, d2) ] ] -> [ (Boolean.mk_implies ctx e1 e2, d1 @ d2) ]
+                                               [ Boolean.mk_or ctx args, flatten_no_dup deps ]
+  | Op_impl, [ [ (e1, d1) ]; [ (e2, d2) ] ] -> [ (Boolean.mk_implies ctx e1 e2, d1 @! d2) ]
   (* Here e1 and e2 can be tuples! We generate an expression for each member of the tuple. *)
   | Op_if, [ [ (eb, db) ]; e1; e2 ]         -> compile_if ctx (eb, db) e1 e2
   | _                                       -> raise (Error InvalidOpArguments)
