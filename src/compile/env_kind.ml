@@ -37,6 +37,9 @@ type z3_env_t = {
   node_calls : (t_node, int) Hashtbl.t;
 }
 
+let get_var env name = List.find (fun v -> v.name = name) env.vars
+let get_var_opt env name = List.find_opt (fun v -> v.name = name) env.vars
+
 (** Returns the [FuncDecl.func_decl] associated with var [v]. *)
 let decl_of_var ctx (v : var_t) =
   FuncDecl.mk_func_decl_s ctx v.name [ int_s ctx ] v.sort
