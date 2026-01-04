@@ -24,8 +24,6 @@ let decl_of_typed_var ctx call ((x, ty) : typed_var) =
   let sort = Common.base_ty_to_sort ctx ty in
   decl_of_name ctx name sort
 
-let add_if_missing x l = if not (List.mem x l) then x :: l else l
-
 (*****************)
 (* Compile expr  *)
 (*****************)
@@ -37,8 +35,8 @@ let rec compile_expr_desc ctx env n_pre n_arr call (e : t_expr_desc) =
   | TE_const c ->
       env.hardcoded_numerals <-
         (match c with
-        | Cint i -> add_if_missing (Int i) env.hardcoded_numerals
-        | Creal f -> add_if_missing (Real f) env.hardcoded_numerals
+        | Cint i -> Common.add_if_missing (Int i) env.hardcoded_numerals
+        | Creal f -> Common.add_if_missing (Real f) env.hardcoded_numerals
         | Cbool _ -> env.hardcoded_numerals);
       [ (Common.compile_const ctx c, []) ]
   | TE_op (op, es) ->
@@ -77,7 +75,9 @@ let rec compile_expr_desc ctx env n_pre n_arr call (e : t_expr_desc) =
       (* We include the dependencies of this identifier if it is not under a pre. *)
       (* In that case, it is just a wire. This works because of TOPOLOGICAL ORDERING. *)
       let deps =
-        if n_pre = 0 then add_if_missing name (Hashtbl.find env.depends_on name)
+        if n_pre = 0 then
+          let deps_of_name = Hashtbl.find env.depends_on name in
+          Common.add_if_missing name deps_of_name
         else [ name ]
       in
       [ (FuncDecl.apply xf [ arg ], deps) ]

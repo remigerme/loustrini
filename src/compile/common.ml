@@ -30,14 +30,8 @@ let rec concat_no_dup l l' =
     If [l] contains duplicates, the final results will also contain duplicates. *)
 let ( @! ) = concat_no_dup
 
-let flatten_no_dup l =
-  let add_if_missing_elt x l = if List.mem x l then l else x :: l in
-  let rec add_if_missing l l' =
-    match l with
-    | [] -> l'
-    | hd :: tl -> add_if_missing tl (add_if_missing_elt hd l')
-  in
-  List.fold_left (fun acc l -> add_if_missing l acc) [] l
+let add_if_missing x l = if List.mem x l then l else x :: l
+let flatten_no_dup l = List.fold_left (fun acc l -> acc @! l) [] l
 
 (** Retrieve string identifier of a node. For streams, use [ident_to_str_call] instead. *)
 let ident_to_str (x : Ident.t) = Printf.sprintf "%s__%i" x.name x.id
