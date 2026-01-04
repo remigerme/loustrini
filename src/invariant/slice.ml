@@ -2,14 +2,11 @@ open Z3
 open Compile.Env_kind
 open Compile.Common
 
-(** Returns the list of [typed_var_t] on which variable [name] depends on. *)
+(** Returns the list of names of variables on which variable [name] depends on.
+    We exclude toplevel arguments. *)
 let slice_name env name =
-  let name_to_typed_var name =
-    let v = List.find (fun (v : var_t) -> v.name = name) env.vars in
-    { name = v.name; sort = v.sort }
-  in
   let deps = Hashtbl.find env.depends_on name in
-  List.map name_to_typed_var deps
+  List.filter_map (get_var_opt env) deps
 
 (** Extract names of all variables (streams) in [p_target]. *)
 let rec extract_names ctx p_target =
