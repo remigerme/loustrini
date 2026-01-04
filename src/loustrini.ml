@@ -11,6 +11,7 @@ let norm_only = ref false
 let _lucy_printer = ref false
 let _ocaml_printer = ref true
 let verbose = ref false
+let hhoudini = ref false
 
 let spec =
   [
@@ -19,6 +20,7 @@ let spec =
     ("-norm-only", Arg.Set norm_only, "  stops after normalization");
     ("-verbose", Arg.Set verbose, "print intermediate transformations");
     ("-v", Arg.Set verbose, "print intermediate transformations");
+    ("-hh", Arg.Set hhoudini, "use h-houdini (default: houdini)");
   ]
 
 let file, main_node =
@@ -78,7 +80,11 @@ let () =
     let ctx = Z3.mk_context [] in
     let env, prop = Compile.Compile_kind.compile_file ctx ft main in
     Compile.Env_kind.print_env env;
-    Checking.Check_kind.prove ctx env prop;
+    let mode =
+      if !hhoudini then Checking.Check_kind.HHoudini
+      else Checking.Check_kind.Houdini
+    in
+    Checking.Check_kind.prove mode ctx env prop;
 
     (* Back to original skeleton *)
     exit 0

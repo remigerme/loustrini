@@ -167,8 +167,9 @@ let compile_file ctx (f : t_file) (main : t_node) =
   let res_args = List.combine evaluated_args empty_deps in
 
   (* Compiling the node, evaluating and conjuncting outputs to form the validity property *)
+  (* Forgetting deps at this point, but they can be retrieved using slicing oracle *)
   let res_outs = compile_node ctx env main res_args in
-  let outputs, deps = List.split res_outs in
+  let outputs, _deps = List.split res_outs in
   let outputs = List.map eval_decl outputs in
   let prop = Boolean.mk_and ctx outputs in
-  (env, prop, List.flatten deps)
+  (env, prop)

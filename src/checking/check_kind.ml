@@ -1,17 +1,30 @@
 open Z3
 open Compile.Env_kind
 
+type learning_mode = Houdini | HHoudini
+
+let mode_to_string mode =
+  match mode with Houdini -> "Houdini" | HHoudini -> "H-Houdini"
+
 let eval_inv_with ctx inv n = List.map (fun h -> eval_expr_at ctx h n) inv
 
-let prove ctx env prop =
+let prove mode ctx env prop =
   (* We check that the given property is a boolean. *)
   Common.check_prop_is_bool prop;
 
   (* Trying to learn a strengthened inductive invariant *)
-  (* For now, we artificially add the desired property to the set of inductive invariants. *)
   let default_inputs = default_inputs ctx env in
-  let inv = prop :: Invariant.Houdini.learn ctx env default_inputs in
-  Printf.printf "Learned invariant (%d)\n" (List.length inv);
+  let inv =
+    match mode with
+    | Houdini -> prop :: Invariant.Houdini.learn ctx env default_inputs
+    | HHoudini -> (
+        match Invariant.Hhoudini.learn ctx env default_inputs prop with
+        | Some h -> h
+        | None ->
+            raise (Error "H-Houdini couldn't learn an inductive invariant"))
+  in
+  Printf.printf "Learned invariants with %s (%d)\n" (mode_to_string mode)
+    (List.length inv);
   List.iteri (fun i e -> Printf.printf "%d %s\n" i (Expr.to_string e)) inv;
 
   (* Creating Z3 variables *)
