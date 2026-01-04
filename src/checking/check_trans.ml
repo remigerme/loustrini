@@ -1,4 +1,4 @@
-open Z3
+(* open Z3
 open Compile.Env_trans
 
 (** Helper as [Boolean.mk_implies] do not support lists of expressions. *)
@@ -52,4 +52,4 @@ let prove ctx env prop =
   match Solver.check solver [ query_cons ] with
   | SATISFIABLE -> print_endline "sat"
   | UNSATISFIABLE -> print_endline "unsat"
-  | UNKNOWN -> print_endline "unknown"
+  | UNKNOWN -> print_endline "unknown" *)

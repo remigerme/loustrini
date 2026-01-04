@@ -1,4 +1,4 @@
-open Z3
+(* open Z3
 open Ast.Typed_ast
 open Env_trans
 
@@ -141,4 +141,4 @@ let compile_file ctx (f : t_file) (main : t_node) =
   (* Compiling the node, evaluating and conjuncting outputs to form the validity property *)
   let outputs = compile_node ctx env (ref 0) main args in
   let prop = Boolean.mk_and ctx outputs in
-  (env, prop)
+  (env, prop) *)
