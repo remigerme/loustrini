@@ -5,6 +5,10 @@
 #show "TODO": set text(fill: red, weight: "bold", style: "italic")
 #set page(numbering: "1 of 1")
 
+#import "@preview/algorithmic:1.0.7"
+#import algorithmic: algorithm-figure, style-algorithm
+#show: style-algorithm
+
 #align(center)[
   #text(size: 1.4em)[Loustrini: a Lustre model checker using the (H-)Houdini algorithm]
 
@@ -88,6 +92,8 @@ Houdini consists in three steps:
 - remove candidates invalidated by positive examples, that is a trace of execution of the program,
 - remove predicates that break inductivity; iterate this step until the overall property is inductive.
 
+Also, an additional step consists in filtering "obvious" invariants. This leads to a less polluted output of Loustrini when printing learned invariants.
+
 === Generating candidate invariants <invgen>
 
 I used the following templates for boolean and numeric (integer and real) variables:
@@ -141,12 +147,70 @@ H-Houdini @h-houdini, which stands for Hierarchical Houdini aims at solving poin
 
 == Overview
 
-*Slicing.* $cal(O)_"slice"$ was implemented by instrumenting the translation from Lustre to SMT. Note that the current implementation requires to handle equations of a node in (combinatorial) topological order, which was not implemented yet, so for now, equations should be written in topological order.
+Before explaining the algorithm, let's introduce the concept of abducts. An abduct $A$ for a property $p$ is a property that makes $p$ inductive. That is, we have $A and p => p'$.
 
-*Mining.*
+A very simplified version of the algorithm is provided in @algo-hh. Intuitively, H-Houdini tries to divide-and-conquer the inductivity of $p$ using abducts. If an abduct fails, we need to backtrack.
+
+#algorithm-figure("H-Houdini", {
+  import algorithmic: *
+  Procedure("learn", "p_target", {
+    Comment[Returns $H$ an invariant that proves p_target or none]
+    Assign($V$, $cal(O)_"slice" ("p_target")$)
+    Assign($P$, $cal(O)_"mine" ("p_target", V)$)
+    Assign("solution", "false")
+    While("not solution", {
+      Assign($H$, "p_target")
+      Assign($A$, $cal(O)_"abduct" ("p_target", H)$)
+      If([$A$ is none], Return("none"))
+      Assign("solution", "true")
+      For($p in A$, {
+        Assign($H_"sol"$, "learn(p)")
+        If([$H_"sol"$ is none], {
+          Assign("solution", "false")
+          Break
+        })
+        Assign($H$, $H and H_"sol"$)
+      })
+    })
+    Return($H$)
+  })
+}) <algo-hh>
+
+To find inductive invariants to prove p_target, H-Houdini works as follows:
+1. First, we extract a set $V$ of variables on which p_target depends on, using a slice operator $cal(O)_"slice"$. $V$ is the set of all variables which can influence p_target in one step of execution.
+2. Then, we generate a set of candidate invariants $P$ using an operator $cal(O)_"mine"$.
+3. Then, until we found a solution or none is returned, we generate an abduct $A$ from $P$ using $cal(O)_"abduct"$. We require each call to $cal(O)_"abduct"$ to generate a new abduct $A$ or none if no new abduct is possible.
+
+== Slicing
+$cal(O)_"slice"$ was implemented by instrumenting the translation from Lustre to SMT. Note that the current implementation requires to handle equations of a node in (combinatorial) topological order, which was not implemented yet, so for now, equations should be written in topological order.
+
+== Mining
+$cal(O)_"mine"$ is very similar to the generation of candidates for Houdini, but we need to make sure that the generated invariants are consistent with p_target. As of submitting the project, the implementation could be more straightforward: I generate candidates without knowledge of p_target and then sift these candidates. It would be better to generate candidates with respect to p_target.
 
 == Abducting <abduct>
 
+This is the magical part, and so, where the issues are.
+
+A method described in the paper is to emit the following query:
+
+$ P and "p_target" and not "p_target'" $
+
+If it is $mono("SAT")$, we return none. Else, it is $mono("UNSAT")$ and we fetch and return an unsat core using the SMT solver. Ideally, this unsat core should be "minimal" (because each assertion of the unsat core will (potentially) lead to a H-Houdini call).
+
+I fail to see how this method allows to generate more than one abduct for given p_target and $P$. An other way would be to rely on the SMT solver directly, but to the best of my knowledge Z3 does not provide an API to compute abducts. cvc5 does but does not provide OCaml bindings.
+
+Moreover, in practice, the unsat core returned by Z3 suffers from two issues:
+- instead of being a list of simple assertions, it is a list containing only one expression: a large conjunction,
+- and this conjunction seems very far from being minimal, for any reasonable definition of minimal, which really doesn't help as it would emit more proof obligations for H-Houdini.
+
+As of submitting the project, this part contains known and also, for sure, yet unknown bugs.
+
 = Evaluation
+
+*Proving with Houdini.* Loustrini can successfully prove non k-inductive properties (see `ic3.lus`). Also, Houdini successfully finds invariants that would fail if tested separately (see remark on completeness in @positive-examples, and `ic_more.lus`).
+
+However, Houdini (and H-Houdini) can easily fail: we generate candidates only for existing Lustre variables. It could be beneficial to introduce state variables (see `fib.lus`) and generate candidates for them too, at the risk of combinational explosion.
+
+*Proving with H-Houdini.* This part is clearly not ready yet.
 
 #bibliography("bibliography.bib")
