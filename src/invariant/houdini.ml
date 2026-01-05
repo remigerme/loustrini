@@ -52,13 +52,12 @@ let rec loop_init solver ctx (h : Expr.expr list) (k : int) =
   | None -> h
   | Some h_pruned -> loop_init solver ctx h_pruned k
 
-let initial_sift ctx env inputs (h : Expr.expr list) =
+(** Performs an initial sift based on positive examples given by the first [k] steps of the program. *)
+let initial_sift ctx env inputs (h : Expr.expr list) (k : int) =
   let solver = Solver.mk_solver ctx None in
-  (* For now, we only use the initial state to perform the initial sift. We could use a longer trace. *)
-  let d = 1 in
-  let trace = Simulation.get_trace ctx env inputs d in
+  let trace = Simulation.get_trace ctx env inputs k in
   Solver.add solver trace;
-  let range_k = List.init d (fun x -> x) in
+  let range_k = List.init k (fun x -> x) in
   List.fold_left (fun acc_h k -> loop_init solver ctx acc_h k) h range_k
 
 (****************)
@@ -110,7 +109,8 @@ let learn ctx env inputs =
   let h = Generation.gen_inv ctx env in
 
   (* Here, we perform the initial sift of h based on positive examples, that is, some trace of execution. *)
-  let h = initial_sift ctx env inputs h in
+  (* For now, we only use the initial state to perform the initial sift. We could use a longer trace. *)
+  let h = initial_sift ctx env inputs h 1 in
 
   (* We need to make sure h is satisfiable else the implication is vacuously true. *)
   (* We also load the solver for future use. *)

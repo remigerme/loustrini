@@ -7,6 +7,10 @@ exception Break
 (** https://stackoverflow.com/questions/22132458/library-function-to-find-difference-between-two-lists-ocaml *)
 let diff l1 l2 = List.filter (fun x -> not (List.mem x l2)) l1
 
+let mine ctx env v_slice inputs (k : int) =
+  let h = Generation.mine_without_sift ctx env v_slice in
+  Houdini.initial_sift ctx env inputs h k
+
 (** Returns a list of expressions from [p_v] making [p_target] inductive, if such a list exists. *)
 let abduct ctx env p_target p_v =
   let solver = Solver.mk_solver ctx None in
@@ -38,12 +42,13 @@ let abduct ctx env p_target p_v =
   | UNSATISFIABLE -> Some (Solver.get_unsat_core solver)
   | UNKNOWN -> raise (Error "Z3 unknown when abducting for H-Houdini")
 
-let rec h_houdini ctx env p_target p_fail positive =
+(** Positive examples are given by [inputs] and [k], which denotes the length of the trace. *)
+let rec h_houdini ctx env p_target p_fail inputs k =
   (* TODO: implement memoization *)
   let valid_solution = ref false in
   let h = ref [ p_target ] in
   let v_slice = Slice.slice ctx env p_target in
-  let p_v = Generation.mine ctx env v_slice in
+  let p_v = mine ctx env v_slice inputs k in
   while not !valid_solution do
     h := [ p_target ];
     let p_v = diff p_v !p_fail in
@@ -53,7 +58,7 @@ let rec h_houdini ctx env p_target p_fail positive =
     valid_solution := true;
     let handle_p p =
       try
-        let h_sol = h_houdini ctx env p p_fail positive in
+        let h_sol = h_houdini ctx env p p_fail inputs k in
         h := h_sol @ !h
       with EmptyAbduct ->
         valid_solution := false;
@@ -64,9 +69,6 @@ let rec h_houdini ctx env p_target p_fail positive =
   done;
   !h
 
-let learn ctx env _inputs prop =
-  let positive =
-    []
-    (*TODO*)
-  in
-  try Some (h_houdini ctx env prop (ref []) positive) with EmptyAbduct -> None
+let learn ctx env inputs prop =
+  (* We use a trace of (arbitrary) length 5 *)
+  try Some (h_houdini ctx env prop (ref []) inputs 5) with EmptyAbduct -> None

@@ -6,8 +6,9 @@ let gen_inv ctx env =
   @ Numeral.gen_inv ctx env Numeral.Mint
   @ Numeral.gen_inv ctx env Numeral.Mreal
 
-(** Mining oracle for H-Houdini, where [names] was obtained using slice oracle. *)
-let mine ctx env v_slice =
+(** (Almost the) mining oracle for H-Houdini, where [names] was obtained using slice oracle.
+    IT DOES NOT PERFORM SIFT ON POSITIVE EXAMPLES. *)
+let mine_without_sift ctx env v_slice =
   let is_bool_s v = Z3.Sort.equal (bool_s ctx) v.sort in
   let is_int_s v = Z3.Sort.equal (int_s ctx) v.sort in
   let is_real_s v = Z3.Sort.equal (real_s ctx) v.sort in
