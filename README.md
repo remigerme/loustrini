@@ -51,7 +51,7 @@ dune build
 and run it with:
 
 ```shell
-dune exec ./bin/loustrini.exe file.lus node
+dune exec ./src/loustrini.exe file.lus node
 ```
 
 ### Building the report
@@ -67,6 +67,27 @@ You can also build the presentation slides. Note that this was a very early pres
 ```shell
 typst compile report/slide/slide.typ
 ```
+
+## Usage
+
+Loustrini supports two invariant learning backends:
+
+- Houdini, used by default,
+- H-Houdini, very experimental as of submitting the project, can be enabled using the `-hh` flag.
+
+You can run Loustrini with dune:
+
+```shell
+dune exec ./src/loustrini.exe ./examples/ic3/ic3.lus check
+```
+
+or using H-Houdini:
+
+```shell
+dune exec ./src/loustrini.exe ./examples/ic3/ic3.lus check -- -hh
+```
+
+I strongly discourage to use H-Houdini for now, as the current abduct oracle is too messy to be used in practice. For more information on this issue, please refer to comments in the [code](./src/invariant/hhoudini.ml).
 
 ## Acknowledgments
 
