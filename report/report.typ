@@ -6,7 +6,7 @@
 #set page(numbering: "1 of 1")
 
 #align(center)[
-  #text(size: 1.4em)[Loustrini: a Lustre model checker using (H-)Houdini algorithm]
+  #text(size: 1.4em)[Loustrini: a Lustre model checker using the (H-)Houdini algorithm]
 
   Rémi Germe
 
@@ -63,27 +63,87 @@ Translating Lustre expressions to SMT expressions using either one of the above 
 
 #let tr(x) = $bracket.stroked #x bracket.r.stroked$
 
-*Translating tuples.* I chose to flatten all tuples, that is translate and equate each member separately. For example, the Lustre statement $x, y = (e, d)$ is translated as $tr(x) = tr(e) and tr(y) = tr(d)$.
+*Translating tuples.* I chose to flatten all tuples, that is translate and equate each member separately. For example, the Lustre statement $x, y = (e, d)$ is translated as $(tr(x) = tr(e)) and (tr(y) = tr(d))$.
 
 *Translating node calls.* I performed instantiation of a node every time it is called, aka inlining. This raises a scalability problem as, if this inlining is not taken into account for invariant generation (see @invgen), we need to learn invariants for each instance of the node separately. Kind2 comes up with different mechanisms to ensure modularity and scalability (compositional reasoning, modular reasoning, progressive refinements, ...) #footnote([See #link("https://github.com/kind2-mc/kind2/discussions/1256").]) @kind2 @instantiation-based-invariant-discovery which I chose not to implement.
 
-= Houdini
+= An invariant learning algorithm: Houdini
 
-== Generating candidate invariants <invgen>
+I first provide a very brief overview of invariant learning algorithms, and then focus on Houdini.
 
-== Sifting candidate invariants
+== Overview of invariant learning algorithms
 
-<positive-examples>
+The context is the following: we want to prove a property $P$ _by induction_ on a given program. $P$ might not be inductive by itself, so we want to strenghten it with inductive lemmas (_.i.e._ invariants) to make the resulting set of properties inductive. Invariant learning algorithms can be classified in two classes: bottom-up or top-down (property-directed) algorithms.
 
-= H-Houdini
+*Bottom-up.* These algorithms try to learn as many inductive invariants on the program as possible. This learning process is executed without any specific desired property. Then, we can check if the learned invariants make the desired property inductive. We might have learned many invariants which appear to be useless when looking at the desired property. Houdini @houdini and instantiation-based invariant discovery @instantiation-based-invariant-discovery #footnote("Morally, the algorithm described as instantiation-based invariant discovery can be seen as an instance of Houdini.") are instances of bottom-up algorithms.
 
-H-Houdini @h-houdini, which stands for Hierarchical Houdini is a way to top-down/property directed.
+*Top-down.* These algorithms try to strenghten the desired property until it is inductive. IC3 @ic3 and (unlike Houdini) H-Houdini are property-directed algorithms.
+
+As mentioned earlier, real-world projects such as Kind2 use both kinds of algorithms simultaneously to perform an efficient and modular analysis. In practice, bottom-up algorithms (at least the ones studied here) are simpler than top-down ones.
+
+== Houdini
+
+Houdini consists in three steps:
+- generate (a huge number of) candidate invariants according to some templates,
+- remove candidates invalidated by positive examples, that is a trace of execution of the program,
+- remove predicates that break inductivity; iterate this step until the overall property is inductive.
+
+=== Generating candidate invariants <invgen>
+
+I used the following templates for boolean and numeric (integer and real) variables:
+
+$
+                          cal(I)_b & ::= b = "true" | b = "false" | b_1 = b_2 | b_1 = not b_2 \
+                      cal(I)_"num" & ::= x diamond.small "cst" | x_1 diamond.small x_2 \
+  "where" space.quad diamond.small & ::= = | != | >= | > | <= | < \
+                             "cst" & ::= -1 | 0 | 1 | {"any numeric value hardcoded in the program"}
+$
+
+Above, $b$, $b_1$, and $b_2$ are boolean variables, and $x$, $x_1$, and $x_2$ are integer (or real) variables. All possible candidates are generated using these templates. This unfortunately leads to contradictory candidates, which we need to be cautious about when trying to remove invalid candidates.
+
+=== Sifting candidate invariants <positive-examples>
+
+*Removing candidates breaking inductivity.* Let's take things backwards and start with the third step. We consider a set of candidates ${h_1, ..., h_d}$ and $H = and.big_(i=1)^d h_i$. Is $H$ inductive? We use the following query:
+
+$
+  Delta(n) and Delta(n+1) and H(n) and not H(n+1) space.quad ?
+$
+$
+  & mono("UNSAT"): H "is inductive OR" H(n) "contradicts" Delta(n) and Delta(n+1) \
+  & mono("SAT"): exists "cex"\, "cex" tack.r.double H(n) and "cex" tack.r.double not H(n+1)) space i.e. space exists i in {1, ..., d}, "cex" tack.r.double not h_i (n+1)
+$
+
+Using the counterexample $"cex"$, we remove all candidates that are invalidated by it, and we iterate until the remaining $H$ is inductive (the empty set in the worst case).
+
+This method is complete relatively to the templates, that is, if an invariant exists as a conjunction of candidates, it will be found. That would not work at all with a naive algorithm consisting in checking every candidate separately.
+
+Note that to be able to use this method, we need to ensure that $Delta(n) and Delta(n+1) and H(n)$ is not vacuously false, else we are not able to conclude when the query for inductivity is $mono("UNSAT")$.
+
+*Initial sift using positive examples.* The role of this initial sift is twofold: first, it allows to make $H$ consistent with our system equations, then, it allows to greatly shrink the set of candidates, accelerating the third step of the algorithm. We can obtain positive examples (_i.e._ examples that the invariants must satisfy) by simulating a trace of execution of length $d$, for all $k <= d$:
+
+$ Delta(0) and ... and Delta(k) and not H(k) $
+
+$
+  & mono("UNSAT"): H "is consistent with step" k \
+  & mono("SAT"): exists "cex", ... "(similar as above, and we keep iterating for this" k")"
+$
+
+=== Comments on Houdini
+
+Houdini is conceptually very simple, but this comes at a cost:
+1. candidates generation is subject to combinational explosion,
+2. we might need to perform many _large_ SMT queries before reaching an inductive set,
+3. we can only learn invariants which are conjuncts of candidates given by the templates (compared to k-induction or IC3 which do not suffer from this restriction).
+
+= H-Houdini <hh>
+
+H-Houdini @h-houdini, which stands for Hierarchical Houdini aims at solving point 2. from above (and also point 1.), by making Houdini top-down/property-directed.
 
 == Overview
 
-== Slicing
+*Slicing.* $cal(O)_"slice"$ was implemented by instrumenting the translation from Lustre to SMT. Note that the current implementation requires to handle equations of a node in (combinatorial) topological order, which was not implemented yet, so for now, equations should be written in topological order.
 
-== Mining
+*Mining.*
 
 == Abducting <abduct>
 
