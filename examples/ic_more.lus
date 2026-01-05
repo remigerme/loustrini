@@ -1,0 +1,13 @@
+node update() returns (x, y, z: int);
+let
+    x = 1 -> pre (x + y);
+    y = 1 -> pre (x + y);
+    z = 1 -> pre (z + x + y);
+tel
+
+node check() returns (ok: bool);
+var x, y, z: int;
+let
+    (x, y, z) = update();
+    ok = z >= 0;
+tel
