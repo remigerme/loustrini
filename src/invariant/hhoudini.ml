@@ -98,24 +98,27 @@ let rec h_houdini ctx env p_target p_fail inputs k =
   let v_slice = Slice.slice ctx env p_target in
   let p_v = mine ctx env v_slice p_target inputs k in
   if List.is_empty p_v then raise EmptyAbduct;
-  while not !valid_solution do
-    h := [ p_target ];
-    let p_v = diff p_v !p_fail in
-    let a = abduct ctx env p_target p_v in
-    if Option.is_none a then raise EmptyAbduct;
-    let a = Option.get a in
-    valid_solution := true;
-    let handle_p p =
-      try
-        let h_sol = h_houdini ctx env p p_fail inputs k in
-        h := h_sol @ !h
-      with EmptyAbduct ->
-        valid_solution := false;
-        p_fail := p :: !p_fail;
-        raise Break
-    in
-    try List.iter handle_p a with Break -> ()
-  done;
+  (* TODO: loop disabled for now as we cannot generate more than abduct anyway,
+     so it is pointless to loop forever. Also, the whole "for p in A" part with recursive calls
+     do not work as the abduct (unsat core) returned by Z3 is a massive conjunction... *)
+  (* while not !valid_solution do *)
+  h := [ p_target ];
+  let p_v = diff p_v !p_fail in
+  let a = abduct ctx env p_target p_v in
+  if Option.is_none a then raise EmptyAbduct;
+  let a = Option.get a in
+  valid_solution := true;
+  let handle_p p =
+    try
+      let h_sol = h_houdini ctx env p p_fail inputs k in
+      h := h_sol @ !h
+    with EmptyAbduct ->
+      valid_solution := false;
+      p_fail := p :: !p_fail;
+      raise Break
+  in
+  (try List.iter handle_p a with Break -> ());
+  (* done; *)
   !h
 
 let learn ctx env inputs prop =
