@@ -7,11 +7,59 @@ exception Break
 (** https://stackoverflow.com/questions/22132458/library-function-to-find-difference-between-two-lists-ocaml *)
 let diff l1 l2 = List.filter (fun x -> not (List.mem x l2)) l1
 
-let mine ctx env v_slice inputs (k : int) =
-  let h = Generation.mine_without_sift ctx env v_slice in
-  Houdini.initial_sift ctx env inputs h k
+(** At this point, we assume [h] is non-contradictory (fair because of initial sifting).
+    We perform naive pruning for now, that is we test every expression of [h].
+    TODO: generate should take [p_target] as an input and should not generate inconsistent candidates. *)
+let sift_wrt_p_target ctx env p_target h =
+  (* First, we check p_target is non-contradictory. *)
+  let solver = Solver.mk_solver ctx None in
+  let n = n_global ctx in
+  let n_plus_1 = n_plus_1_global ctx in
+  let d_n = eqs ctx env n in
+  let d_n_plus_1 = eqs ctx env n_plus_1 in
+  Solver.add solver (d_n @ d_n_plus_1);
+  let p_n = eval_expr_at ctx p_target n in
+  match Solver.check solver [ p_n ] with
+  | UNSATISFIABLE ->
+      (* p_target is contradictory, abduct will ultimately return None *)
+      []
+  | UNKNOWN ->
+      raise
+        (Error "Z3 unknown when checking that p_target is non-contradictory.")
+  | SATISFIABLE ->
+      Solver.add solver [ p_n ];
+      let non_contradictory e =
+        match Solver.check solver [ e ] with
+        | SATISFIABLE -> true
+        | UNSATISFIABLE -> false
+        | UNKNOWN ->
+            raise
+              (Error
+                 "Z3 unknown when performing sifting for individual expression \
+                  w.r.t. p_target.")
+      in
+      List.filter non_contradictory h
 
-(** Returns a list of expressions from [p_v] making [p_target] inductive, if such a list exists. *)
+let mine ctx env v_slice p_target inputs (k : int) =
+  let h = Generation.mine_without_sift ctx env v_slice in
+  (* Sift based on positive examples *)
+  let h = Houdini.initial_sift ctx env inputs h k in
+  (* But we also need to sift w.r.t p_target *)
+  sift_wrt_p_target ctx env p_target h
+
+(** Returns a list of expressions from [p_v] making [p_target] inductive, if such a list exists.
+    Ideally, I'd love to use cvc5's getAbductNext + ensuring minimality using flags.
+    FOR NOW, SUCH ABDUCTS ARE FAR FROM MINIMAL. We generate way too many useless proof obligations.
+    We would need to, at least, sift the generated abduct to remove what can be obviously removed.
+    I think the best option by far would be to delegate this work to the SMT solver.
+    According to the paper, the method presented is faster than cvc5's builtin,
+    but I fail to understand how this query can generate multiple different abducts
+    (and the minimality is ensured by the SMT anyway). In the VeloCT implementation:
+    - hierarchical.py uses cvc5's getAbductNext,
+    - learn_inv_distributed.py uses a simple getUnsatCore, I haven't understood how can we have multiple abducts with this. 
+    
+    Also, Z3's get_unsat_core sometimes returns one huge expression (an and with many sub-expressions)
+    instead of a list of simple expressions which would be better for us. *)
 let abduct ctx env p_target p_v =
   let solver = Solver.mk_solver ctx None in
   let n = n_global ctx in
@@ -48,7 +96,8 @@ let rec h_houdini ctx env p_target p_fail inputs k =
   let valid_solution = ref false in
   let h = ref [ p_target ] in
   let v_slice = Slice.slice ctx env p_target in
-  let p_v = mine ctx env v_slice inputs k in
+  let p_v = mine ctx env v_slice p_target inputs k in
+  if List.is_empty p_v then raise EmptyAbduct;
   while not !valid_solution do
     h := [ p_target ];
     let p_v = diff p_v !p_fail in

@@ -12,7 +12,7 @@ let slice_name env name =
 let rec extract_names ctx p_target =
   let names =
     List.fold_left
-      (fun acc e -> extract_names ctx e @! acc)
+      (fun acc e -> acc @! extract_names ctx e)
       [] (Expr.get_args p_target)
   in
   let f = Expr.get_func_decl p_target in
@@ -20,7 +20,7 @@ let rec extract_names ctx p_target =
   | Z3enums.OP_UNINTERPRETED ->
       let name = FuncDecl.get_name f in
       let name = Symbol.get_string name in
-      add_if_missing name names
+      if name = "n" then names else add_if_missing name names
   | _ -> names
 
 (** Returns the list of [typed_var_t] on which the property [p_target] depends on. *)
