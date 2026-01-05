@@ -62,10 +62,10 @@ The report is written using [Typst](https://github.com/typst/typst). Assuming Ty
 typst compile report/report.typ
 ```
 
-You can also build the presentation slides. Note that this was a very early presentation, way before Loustrini was completed.
+You can also build the presentation slides. Note that, as of submitting the project, this is only a very drafty version of the slides that I will present.
 
 ```shell
-typst compile report/slide/slide.typ
+typst compile report/slide/slide.typ --root=report
 ```
 
 ## Usage
@@ -88,6 +88,21 @@ dune exec ./src/loustrini.exe ./examples/ic3/ic3.lus check -- -hh
 ```
 
 I strongly discourage to use H-Houdini for now, as the current abduct oracle is too messy to be used in practice. For more information on this issue, please refer to comments in the [code](./src/invariant/hhoudini.ml).
+
+## Skimming the project
+
+All source files are in the [`src`](./src/) directory:
+
+- [`ast`](./src/ast/) contains the AST provided by the project template
+- [`compile`](./src/compile/) contains the translation from Lustre to SMT for both encodings, even though I deprecated the `trans` (for transition system) because of updates in `common.ml`
+  - [`env_kind.ml`](./src/compile/env_kind.ml) is probably the most important file as it contains the SMT encoding and how it is used to emit equations
+- [`checking`](./src/checking/) contains the pipeline to prove a property:
+  1. learn invariants using Houdini or H-Houdini (and add the desired property for Houdini),
+  2. verify that these invariants are non-contradictory (should pass),
+  3. verify that these invariants imply the desired property (should pass as we added the desired property when using Houdini),
+  4. verify that initiation holds,
+  5. verify that consecution holds.
+- [`invariant`](./src/invariant/) contains the implementations for Houdini and H-Houdini.
 
 ## Acknowledgments
 
