@@ -19,24 +19,27 @@
   ]
 }
 
-#show: metropolis-theme.with(aspect-ratio: "16-9", config-info(
-  title: [#smallcaps(text(weight: "bold", size: 0.8em, "Loustrini"))#text(size: 0.8em, ":") #text(
-      size: 0.7em,
-    )[A Lustre Model Checker using the H-Houdini Invariant Learning Algorithm]],
-  subtitle: "Or me learning about invariant learning algorithms",
-  author: "Rémi Germe",
-  date: datetime.today(),
-))
+#show: metropolis-theme.with(
+  aspect-ratio: "16-9",
+  config-info(
+    title: [#smallcaps(text(weight: "bold", size: 0.8em, "Loustrini"))#text(size: 0.8em, ":") #text(
+        size: 0.7em,
+      )[A Lustre Model Checker using (H-)Houdini Invariant Learning Algorithm]],
+    subtitle: "Or me learning about invariant learning algorithms",
+    author: "Rémi Germe",
+    date: "09.01.2026",
+  ),
+)
 
 #title-slide()
 
 #outline(depth: 1)
 
-= First experiments
+= First experiments with SMT solvers
 
-== Initial fiddling with SMT solvers: finding bugs
+== First experiments with SMT solvers
 
-*Goal:* SMT-solver-agnostic model checker $=>$ use of a frontend library $=>$ in OCaml: `Smt.ml`
+*Goal:* SMT-solver-agnostic model checker $=>$ use a frontend library $=>$ in OCaml: `Smt.ml` @smtml
 
 - Surprising behavior from `Smt.ml`, played with different solvers as well as the SMTLIB2 format directly #text(size: 0.55em, [(and was stuck in a dependency hell regarding `opam`, `z3`, `llvm`, `ld`, ...)])
 
@@ -45,7 +48,7 @@ Aftermath of these initial experiments:
 
 - discovered unsound behavior in Bitwuzla mappings of `Smt.ml` (see #link("https://github.com/formalsec/smtml/issues/465", text(fill: oran, "issue #465")))
 
-- discovered bug in AltErgo support of `Smt.ml` (see #link("https://github.com/formalsec/smtml/discussions/450", text(fill: oran, "discussion #450")))
+- discovered bug in AltErgo @ae support of `Smt.ml` (see #link("https://github.com/formalsec/smtml/discussions/450", text(fill: oran, "discussion #450")))
 
 - more generally, clarification of the current limitations of `Smt.ml` (also #link("https://github.com/formalsec/smtml/discussions/450", text(fill: oran, "discussion #450")))
 
@@ -53,65 +56,19 @@ Aftermath of these initial experiments:
 
 #sepa
 
-$=>$ Loustrini is _not_ solver-agnostic (based on `Z3`).
+$=>$ Loustrini is _not_ solver-agnostic (using `Z3` @z3 - best would have been `cvc5` @cvc5 for _abducts_).
 
-== Initial fiddling with SMT solvers: encoding programs
+= Translating Lustre to SMT expressions
 
-#{
-  grid(
-    columns: (1fr, 1fr),
-    column-gutter: 10pt,
-    row-gutter: 1em,
-    align: center,
-    [Two encodings of the same Lustre program:],
-    text(size: 0.6em, ```
-    x = 1 -> pre x + 1;
-    y = 1 -> pre (x + y);
-    ok = y >= 0;
-    ```),
+== Encoding _à la_ k-induction
 
-    text(size: 0.5em, ```smt2
-    (define-fun-rec x_naive ((n Int)) Int
-        (ite (= n 0) 1 (+ (x_naive (- n 1)) 1)))
-    (define-fun-rec y_naive ((n Int)) Int
-        (ite (= n 0) 1 (+ (y_naive (- n 1)) (x_naive (- n 1)))))
-    (define-fun ok_naive ((n Int)) Bool
-        (>= (y_naive n) 0))
+TODO
 
-    (declare-const n Int)
+== Encoding as a transition system
 
-    (echo "consecution: unsat iff ok(n) => ok(n+1) is true:")
-    (assert (and (>= n 0) (ok n) (not (ok (+ n 1)))))
-    (check-sat)
-    ```),
-    text(size: 0.5em, ```smt2
-    (define-fun init ((x Int) (y Int)) Bool (and (= x 1) (= y 1)))
+TODO
 
-    (define-fun trans ((x Int) (y Int) (nx Int) (ny Int)) Bool
-        (and (= nx (+ x 1))
-             (= ny (+ y x))))
-
-    (define-fun ok ((y Int)) Bool (>= y 0))
-
-    (declare-const x Int)
-    (declare-const y Int)
-    (declare-const nx Int)
-    (declare-const ny Int)
-
-    (echo "consecution: unsat iff ok is inductive:")
-    (assert (and (ok y)
-                 (trans x y nx ny)
-                 (not (ok ny))))
-    (check-sat)
-    ```),
-
-    [Z3 *timeouts* without providing a counterexample.],
-
-    [Z3 *immediately answers* `SAT`, providing a counterexample.],
-  )
-}
-
-= H-Houdini and Invariant Learning Algorithms
+= Invariants learning algorithms, Houdini, H-Houdini
 
 == Overview of invariant learning algorithms
 
@@ -134,6 +91,99 @@ $
   & space.quad space.quad "learn" F_(i+1) "from a counterexample (strengthening)" \
   & F := F_0 and ... and F_i
 $
+
+== Houdini: overview @houdini @instantiation-based-invariant-discovery
+
+#grid(
+  columns: 2,
+  column-gutter: 20pt,
+  image("assets/houdini-pipeline.svg"),
+  align(top, [
+    #v(1.2em)
+    - Generating a lot of candidates using templates (see next slide)
+
+    #v(2.8em)
+    - Initial sift: removing all candidates that do no satisfy a trace of execution (see next next slide)
+
+    #v(2em)
+    - Inductivity sift: removing all candidates that break inductivity, and iterate until reaching an inductive set (see next next slide)
+
+    #v(3em)
+    - Final learned inductive invariants
+  ]),
+)
+
+== Houdini: generating invariants
+
+#let rel(x) = text(fill: rgb("e41deb"), $#x$)
+
+#grid(
+  columns: 2,
+  column-gutter: 10pt,
+  row-gutter: 1em,
+  [*Booleans.*], $cal(I)_b ::= b = "true" | b = "false" | rel(b_1 = b_2) | rel(b_1 = not b_2)$,
+  [*Integers.*], $cal(I)_i ::= i diamond.small "cst" | rel(i_1 diamond.small i_2)$,
+
+  [*Reals.*], [Same as for integers.],
+)
+
+Where:
+- $"cst" in {0, 1, -1} union {"constants of interest (hardcoded in the program)"}$
+- $diamond.small ::= space.thin >= | > | <= | < | = | !=$
+
+We obtain a set of candidates $H = and.big_(i=1)^d h_i$.
+
+#v(1em)
+#align(center, [*SOUND* but absolutely not *COMPLETE*
+
+  but Houdini is complete _relative_ to the templates])
+
+== Houdini: sifting candidates
+
+=== Inductivity check.
+
+$ Delta(n) and Delta(n+1) and H(n) and not H(n+1) space ? $
+
+$
+  & mono("UNSAT"): H "is inductive OR" H(n) "contradicts" Delta(n) and Delta(n+1) \
+  & mono("SAT"): exists "cex"\, cases("cex" tack.r.double H(n), "cex" tack.r.double not H(n+1)) space i.e. space exists i in {1, ..., d}, underbrace(#[*$"cex" tack.r.double not h_i (n+1)$*], "remove all these candidates")
+$
+
+#place(dy: -1.5em, text(size: 0.7em)[Better than checking each $h_i$ separately.])
+
+=== Initial sift.
+
++ Prune the search space by removing many candidates that do not hold.
++ Ensure $H$ is non-contradictory (vacuously false).
+
+$ Delta(0) and ... and Delta(k) and not H(k) $
+
+$
+  & mono("UNSAT"): H "is consistent with step" k \
+  & mono("SAT"): exists "cex", ... "(similar as above, and we keep iterating for this" k")"
+$
+
+== Houdini: demo
+
+Extra-prunning of "obvious" invariants.
+
+=== `ic3.lus`
+
+#codly(number-format: none)
+```
+x = 1 -> pre x + 1;
+y = 1 -> pre (x + y);
+ok = y >= 0;
+```
+
+Not k-inductive!
+
+#v(1em)
+
+=== `fib.lus`
+
+With/without explicit state variables.
+
 
 == Learning invariants with Houdini @houdini and instantiation-based invariants @instantiation-based-invariant-discovery
 
@@ -351,11 +401,64 @@ $=>$ strenghten our lhs with $Delta(n+2)$
 #pagebreak()
 
 #set align(top)
-#set text(size: 0.7em)
-#bibliography("../bibliography.bib", title: "References")
+#{
+  set text(size: 0.7em)
+  bibliography("bibliography.bib", title: "References")
+}
 
+#show: appendix
 
+== Initial fiddling with SMT solvers: encoding programs
 
+#grid(
+  columns: (1fr, 1fr),
+  column-gutter: 10pt,
+  row-gutter: 1em,
+  align: center,
+  [Two encodings of the same Lustre program:],
+  text(size: 0.6em, ```
+  x = 1 -> pre x + 1;
+  y = 1 -> pre (x + y);
+  ok = y >= 0;
+  ```),
 
-- property referring to next states
-- simulation problem when using (I, T) encoding
+  text(size: 0.5em, ```smt2
+  (define-fun-rec x_naive ((n Int)) Int
+      (ite (= n 0) 1 (+ (x_naive (- n 1)) 1)))
+  (define-fun-rec y_naive ((n Int)) Int
+      (ite (= n 0) 1 (+ (y_naive (- n 1)) (x_naive (- n 1)))))
+  (define-fun ok_naive ((n Int)) Bool
+      (>= (y_naive n) 0))
+
+  (declare-const n Int)
+
+  (echo "consecution: unsat iff ok(n) => ok(n+1) is true:")
+  (assert (and (>= n 0) (ok n) (not (ok (+ n 1)))))
+  (check-sat)
+  ```),
+  text(size: 0.5em, ```smt2
+  (define-fun init ((x Int) (y Int)) Bool (and (= x 1) (= y 1)))
+
+  (define-fun trans ((x Int) (y Int) (nx Int) (ny Int)) Bool
+      (and (= nx (+ x 1))
+           (= ny (+ y x))))
+
+  (define-fun ok ((y Int)) Bool (>= y 0))
+
+  (declare-const x Int)
+  (declare-const y Int)
+  (declare-const nx Int)
+  (declare-const ny Int)
+
+  (echo "consecution: unsat iff ok is inductive:")
+  (assert (and (ok y)
+               (trans x y nx ny)
+               (not (ok ny))))
+  (check-sat)
+  ```),
+
+  [Z3 *timeouts* without providing a counterexample.],
+
+  [Z3 *immediately answers* `SAT`, providing a counterexample.],
+)
+
