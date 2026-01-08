@@ -62,15 +62,77 @@ $=>$ Loustrini is _not_ solver-agnostic (using `Z3` @z3 - best would have been `
 
 == Encoding _à la_ k-induction
 
-TODO
+Encoding presented in the handout.
+
+*$Delta(n)$* encodes the system equations at time $n$.
+
+Checking a property $P$ is inductive on system $Delta$:
+
+$
+  & ("initiation")             && Delta(0) => P(0) \
+  & ("consecution") space.quad && Delta(n) and Delta(n+1) and P(n) => P(n+1)
+$
+
+#sepa
+
+Remark: I implemented a wrong semantics for $e -> e'$:
+
+$1 -> 2 -> 3$ generates $cases(1 "if" n = 0, 2 "if" n = 1, 3 "if" n >= 2)$ instead of $cases(1 "if" n = 0, 3 "if" n >= 1)$.
 
 == Encoding as a transition system
+#text(size: 0.9em)[
+  Transition system $(I, T)$ using state variables and primed variables, verifying a property P:
+  $ I => P "and" P and T => P' $
 
-TODO
+  #let sem(x) = $bracket.l.stroked #x bracket.r.stroked$
+
+  *Handling $mono("pre") e$:* introduce a new state variable $S_"id"^mono("pre") = {mono("init") =$ #sym.emptyset$; space mono("next") = sem(e)}$
+
+  *Handling of $e -> e'$:* use $"ite"(S_i^(->), sem(e), sem(e'))$ with:
+  - $S_0^(->) = {mono("init") = "true"; space mono("next") = "false"}$
+  - $S_1^(->) = {mono("init") = "false"; space mono("next") = S_0^(->)}$
+  - $S_2^(->) = {mono("init") = "false"; space mono("next") = S_1^(->)}$
+  - ...
+
+  We also need to make sure we have *at most one* of the $S_i^(->)$ to be true #text(size: 0.8em)[(+ harder to obtain positive examples)].
+
+  #sepa
+
+  $ #emoji.warning space.quad #st($Delta(n) and$) Delta(n+1) and P(n) => P(n+1) $
+
+  #align(
+    center,
+    [Even less precise, the consecution might fail because of *spurious counterexamples* (unreachable situations), already the case before but less likely.],
+  )
+]
+
+== Encoding non trivial constructs
+
+=== Tuples.
+
+Treat a n-tuple as n-expressions and translate each member separately.
+
+#sepa
+
+=== Node calls.
+
+Instantiation (inlining) of nodes at call site.
+
+How to learn efficiently invariants for a node (and not just for its instances)?
+
+In real-world projects (see #link("https://github.com/kind2-mc/kind2/discussions/1256", text(fill: oran, "discussion #1256")) and @kind2 @instantiation-based-invariant-discovery):
+- compositional reasoning
+- modular reasoning
+- progressive refinements
+- ...
+
+This issue will *not* be addressed in the project.
 
 = Invariants learning algorithms, Houdini, H-Houdini
 
 == Overview of invariant learning algorithms
+
+TODO
 
 *Goal:* prove a safety property $P$.
 
@@ -113,9 +175,11 @@ $
   ]),
 )
 
-== Houdini: generating invariants
+== Houdini: generating invariants <invgen>
 
 #let rel(x) = text(fill: rgb("e41deb"), $#x$)
+
+Variables below are all evaluated at $n$. #link(<nnpone>)[(details)]
 
 #grid(
   columns: 2,
@@ -184,33 +248,77 @@ Not k-inductive!
 
 With/without explicit state variables.
 
-
-== Learning invariants with Houdini @houdini and instantiation-based invariants @instantiation-based-invariant-discovery
-
-IC3 PDR vs Houdini / instantiation based -> Sorcar (pdr)
-
-Top-down (PDR) or bottom-up
-
-== Learning invariants with H-Houdini @h-houdini
+== H-Houdini: overview @h-houdini
 
 TODO
 
-= Current Status & Future Work
+== Conclusion
 
-== Lustre $=>$ SMT: encoding from the subject (aka @scalingup)
+TODO
 
-Reminder:
+#pagebreak()
 
-$
-  & "(initiation)"  && Delta(0) => P(0) \
-  & "(consecution)" && Delta(n) and Delta(n + 1) and P(n) => P(n+1)
-$
+#show: appendix
 
-Encoding is straighforward except:
-- tuples
-- node calls
+#{
+  set align(top)
+  set text(size: 0.7em)
+  bibliography("bibliography.bib", title: "References")
+}
 
-Teasing: \ I believe the additional presence of $Delta(n)$ on top of $Delta(n+1)$ is deeply tied to *$k$-induction*, which we are not doing here.
+== Initial fiddling with SMT solvers: encoding programs
+
+#grid(
+  columns: (1fr, 1fr),
+  column-gutter: 10pt,
+  row-gutter: 1em,
+  align: center,
+  [Two encodings of the same Lustre program:],
+  text(size: 0.6em, ```
+  x = 1 -> pre x + 1;
+  y = 1 -> pre (x + y);
+  ok = y >= 0;
+  ```),
+
+  text(size: 0.5em, ```smt2
+  (define-fun-rec x_naive ((n Int)) Int
+      (ite (= n 0) 1 (+ (x_naive (- n 1)) 1)))
+  (define-fun-rec y_naive ((n Int)) Int
+      (ite (= n 0) 1 (+ (y_naive (- n 1)) (x_naive (- n 1)))))
+  (define-fun ok_naive ((n Int)) Bool
+      (>= (y_naive n) 0))
+
+  (declare-const n Int)
+
+  (echo "consecution: unsat iff ok(n) => ok(n+1) is true:")
+  (assert (and (>= n 0) (ok n) (not (ok (+ n 1)))))
+  (check-sat)
+  ```),
+  text(size: 0.5em, ```smt2
+  (define-fun init ((x Int) (y Int)) Bool (and (= x 1) (= y 1)))
+
+  (define-fun trans ((x Int) (y Int) (nx Int) (ny Int)) Bool
+      (and (= nx (+ x 1))
+           (= ny (+ y x))))
+
+  (define-fun ok ((y Int)) Bool (>= y 0))
+
+  (declare-const x Int)
+  (declare-const y Int)
+  (declare-const nx Int)
+  (declare-const ny Int)
+
+  (echo "consecution: unsat iff ok is inductive:")
+  (assert (and (ok y)
+               (trans x y nx ny)
+               (not (ok ny))))
+  (check-sat)
+  ```),
+
+  [Z3 *timeouts* without providing a counterexample.],
+
+  [Z3 *immediately answers* `SAT`, providing a counterexample.],
+)
 
 == Lustre $=>$ SMT: tuples
 
@@ -293,52 +401,19 @@ In real-world projects (see #link("https://github.com/kind2-mc/kind2/discussions
 
 This issue will *not* be addressed in the project.
 
-== Lustre $=>$ SMT: another encoding: transition system
+== Properties refering to $n$ and $n+1$ <nnpone>
 
-#text(size: 0.9em)[
-  Transition system $(I, T)$ using state variables and primed variables, verifying a property P:
-  $ I => P "and" P and T => P' $
+They require careful thinking:
 
-  #let sem(x) = $bracket.l.stroked #x bracket.r.stroked$
+$
+  underbrace(Delta(n) and Delta(n+1), "do not constrain" x(n+2)) and P(n) => underbrace(P(n+1), "refers to" x(n+2)) ? " will fail, so still sound"
+$
 
-  *Handling $mono("pre") e$:* introduce a new state variable $S_"id"^mono("pre") = {mono("init") =$ #sym.emptyset$; space mono("next") = sem(e)}$
+$=>$ strenghten our lhs with $Delta(n+2)$
 
-  *Handling of $e -> e'$:* use $"ite"(S_i^(->), sem(e), sem(e'))$ with:
-  - $S_0^(->) = {mono("init") = "true"; space mono("next") = "false"}$
-  - $S_1^(->) = {mono("init") = "false"; space mono("next") = S_0^(->)}$
-  - $S_2^(->) = {mono("init") = "false"; space mono("next") = S_1^(->)}$
-  - ...
+#link(<invgen>)[Go back.]
 
-  We also need to make sure we have *at most one* of the $S_i^(->)$ to be true.
-
-  #sepa
-
-  $ #emoji.warning space.quad #st($Delta(n) and$) Delta(n+1) and P(n) => P(n+1) $
-
-  #align(
-    center,
-    [Even less precise, the consecution might fail because of *spurious counterexamples* (unreachable situations), already the case before but less likely.],
-  )
-]
-
-== Instantiating invariants using templates @houdini @instantiation-based-invariant-discovery
-
-#let rel(x) = text(fill: rgb("e41deb"), $#x$)
-
-*Booleans.* $cal(I)_b ::= b = "true" | b = "false" | rel(b_1 = b_2) | rel(b_1 = not b_2)$
-
-*Integers.* $cal(I)_i ::= i diamond.small "cst" | rel(i_1 diamond.small i_2)$
-
-*Reals.* Same as for integers.
-
-Where:
-- $"cst" in {0, 1, -1} union {"constants of interest (hardcoded in the program)"}$
-- $diamond.small ::= space.thin >= | > | <= | < | = | !=$
-
-#v(1em)
-#align(center, [*SOUND* but absolutely not *COMPLETE*])
-
-== Instantiating invariants: need for positive examples
+== Positive examples for transition system
 
 Strategy: $(C and T => C') <==> C and T and not C'$ to see if $C$ is inductive (iff query $mono("UNSAT")$).
 
@@ -374,91 +449,3 @@ Problem: initial state alone is not sufficient: $mono("pre")$ variables are not 
 }
 
 $=>$ simulate the program for $k$ steps (where $k$ denotes the max depth of $mono("pre")$ statements): _difficult_ with this encoding
-
-Instead, we go back to *$Delta(n)$ encoding*:
-
-$=>$ no state variable so $Delta(0)$ should be enough to initialize the whole system #text(size: 0.8em)[(toplevel inputs are given default values to compute a trace)]...\ *except for properties refering n+1*, e.g. $P(n) = x(n) <= x(n+1)$
-
-- those properties were a pain in $(I, T)$ encoding anyway:
-#text(size: 0.9em, table(
-  columns: (1fr, 1fr),
-  stroke: gray,
-  align: center,
-  [$Delta(n)$ encoding], [$(I, T)$ encoding],
-  $P(n) = x(n) <= x(n+1)$, $P = x <= x'$,
-  $P(n+1) = x(n+1) <= x(n+2)$, [$P' = x' <=$* $x''$*],
-))
-
-- they require careful thinking:
-
-$
-  underbrace(Delta(n) and Delta(n+1), "do not constrain" x(n+2)) and P(n) => underbrace(P(n+1), "refers to" x(n+2)) ? " will fail, so still sound"
-$
-
-$=>$ strenghten our lhs with $Delta(n+2)$
-
-
-#pagebreak()
-
-#set align(top)
-#{
-  set text(size: 0.7em)
-  bibliography("bibliography.bib", title: "References")
-}
-
-#show: appendix
-
-== Initial fiddling with SMT solvers: encoding programs
-
-#grid(
-  columns: (1fr, 1fr),
-  column-gutter: 10pt,
-  row-gutter: 1em,
-  align: center,
-  [Two encodings of the same Lustre program:],
-  text(size: 0.6em, ```
-  x = 1 -> pre x + 1;
-  y = 1 -> pre (x + y);
-  ok = y >= 0;
-  ```),
-
-  text(size: 0.5em, ```smt2
-  (define-fun-rec x_naive ((n Int)) Int
-      (ite (= n 0) 1 (+ (x_naive (- n 1)) 1)))
-  (define-fun-rec y_naive ((n Int)) Int
-      (ite (= n 0) 1 (+ (y_naive (- n 1)) (x_naive (- n 1)))))
-  (define-fun ok_naive ((n Int)) Bool
-      (>= (y_naive n) 0))
-
-  (declare-const n Int)
-
-  (echo "consecution: unsat iff ok(n) => ok(n+1) is true:")
-  (assert (and (>= n 0) (ok n) (not (ok (+ n 1)))))
-  (check-sat)
-  ```),
-  text(size: 0.5em, ```smt2
-  (define-fun init ((x Int) (y Int)) Bool (and (= x 1) (= y 1)))
-
-  (define-fun trans ((x Int) (y Int) (nx Int) (ny Int)) Bool
-      (and (= nx (+ x 1))
-           (= ny (+ y x))))
-
-  (define-fun ok ((y Int)) Bool (>= y 0))
-
-  (declare-const x Int)
-  (declare-const y Int)
-  (declare-const nx Int)
-  (declare-const ny Int)
-
-  (echo "consecution: unsat iff ok is inductive:")
-  (assert (and (ok y)
-               (trans x y nx ny)
-               (not (ok ny))))
-  (check-sat)
-  ```),
-
-  [Z3 *timeouts* without providing a counterexample.],
-
-  [Z3 *immediately answers* `SAT`, providing a counterexample.],
-)
-
