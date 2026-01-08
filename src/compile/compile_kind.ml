@@ -58,10 +58,8 @@ let rec compile_expr_desc ctx env n_pre n_arr call (e : t_expr_desc) =
       let e_n_arr = Arithmetic.Integer.mk_numeral_i ctx n_arr in
       let etest = Boolean.mk_eq ctx (n_global ctx) e_n_arr in
       Common.compile_if ctx (etest, []) res_init res_gen
-  (* We are interested in the 1-step COI so we forget about dependencies if it's more than the first pre. *)
-  | TE_pre e ->
-      let res = compile_expr ctx env (n_pre + 1) n_arr call e in
-      if n_pre = 0 then res else List.map (fun (e, _) -> (e, [])) res
+  (* TODO: Intuitively, that would be relevant to store the depth of the pre (ie the argument of the stream we depend on). *)
+  | TE_pre e -> compile_expr ctx env (n_pre + 1) n_arr call e
   (* To support nested tuples, we simply flatten them by flattening the list of lists. *)
   (* Why do one even uses nested tuples in Lustre??? *)
   | TE_tuple es ->
