@@ -160,7 +160,7 @@ A very simplified version of the algorithm is provided in @algo-hh. Intuitively,
     Assign("solution", "false")
     While("not solution", {
       Assign($H$, "p_target")
-      Assign($A$, $cal(O)_"abduct" ("p_target", H)$)
+      Assign($A$, $cal(O)_"abduct" ("p_target", P)$)
       If([$A$ is none], Return("none"))
       Assign("solution", "true")
       For($p in A$, {
