@@ -73,11 +73,28 @@ $
   & ("consecution") space.quad && Delta(n) and Delta(n+1) and P(n) => P(n+1)
 $
 
-#sepa
 
-Remark: I implemented a wrong semantics for $e -> e'$:
+== Remarks
+
+=== Wrong semantics for $->$
+
+I implemented a wrong semantics for $e -> e'$:
 
 $1 -> 2 -> 3$ generates $cases(1 "if" n = 0, 2 "if" n = 1, 3 "if" n >= 2)$ instead of $cases(1 "if" n = 0, 3 "if" n >= 1)$.
+
+#v(2em)
+
+=== Properties refering to $n$ and $n+1$
+
+They require careful thinking:
+
+$
+  underbrace(Delta(n) and Delta(n+1), "do not constrain" x(n+2)) and P(n) => underbrace(P(n+1), "refers to" x(n+2)) ? " will fail, so still sound"
+$
+
+$=>$ would require to strenghten our lhs with $Delta(n+2)$
+
+I did *not* consider those properties.
 
 == Encoding as a transition system
 #text(size: 0.9em)[
@@ -132,27 +149,44 @@ This issue will *not* be addressed in the project.
 
 == Overview of invariant learning algorithms
 
-TODO
+*Goal:* prove a safety property $P$. Let's not use _$k$-induction_ but _invariant learning_ instead.
 
-*Goal:* prove a safety property $P$.
-
-Let's not use _$k$-induction_ but _invariant learning_ instead.
-
-*Challenge:* find a property $F$ such that:
+*Challenge:* find a property $H$ such that:
 $
-  & "(initialization)"           &              I & => F \
-  & "(consecution)"              & F and T(F, F') & => F' \
-  & "(implies desired property)" &              F & => P \
+  & "(initiation)"               &       I & => H \
+  & "(consecution)"              & H and T & => H' \
+  & "(implies desired property)" &       H & => P \
 $
 
-How to find such an $F$?
+How to find such an $H$?
 
-$
-  & "start from" F_0 := P \
-  & "while" F_0 and ... and F_i "is not inductive" \
-  & space.quad space.quad "learn" F_(i+1) "from a counterexample (strengthening)" \
-  & F := F_0 and ... and F_i
-$
+#table(
+  columns: (1fr, 1fr),
+  inset: 10pt,
+  stroke: (x, y) => {
+    let inner = 1pt
+    (
+      left: if x > 0 { inner } else { none },
+      right: if x < 1 { inner } else { none },
+      top: if y > 0 { inner } else { none },
+    )
+  },
+  align(center)[*Bottom-up* approaches], align(center)[*Top-down* approaches (property-directed)],
+  [Learn as many invariants as possible],
+  [Learn relevant invariants to prove a given desired property],
+
+  [
+    - Houdini @houdini
+    - #text(
+        size: 0.95em,
+      )[Instantiation-based invariant discovery @instantiation-based-invariant-discovery
+      ]
+  ],
+  [
+    - IC3 @ic3
+    - H-Houdini @h-houdini
+  ],
+)
 
 == Houdini: overview @houdini @instantiation-based-invariant-discovery
 
@@ -179,7 +213,7 @@ $
 
 #let rel(x) = text(fill: rgb("e41deb"), $#x$)
 
-Variables below are all evaluated at $n$. #link(<nnpone>)[(details)]
+Variables below are all evaluated at $n$ ($n$ and $n-1$ (+ init to true) would have been possible).
 
 #grid(
   columns: 2,
@@ -248,19 +282,112 @@ Not k-inductive!
 
 With/without explicit state variables.
 
+#sepa
+
+Limitation: we cannot learn an invariant not present in the templates.
+
 == H-Houdini: overview @h-houdini
 
-TODO
+#text(size: 0.8em)[
+  === Motivation.
 
-== Conclusion
+  - candidates generation is subject to combinational explosion,
+  - sifting may require _many_, _large_ SMT queries.
 
-TODO
+  H-Houdini ("Hierarchical Houdini") aims at solving these by making Houdini *property-directed*.
+
+  ```python
+  def h-houdini(p_target):
+    V = SLICE(p_target) # extract relevant variables
+    P = MINE(p_target, V) # generate candidates
+    while # flag to keep iterating:
+      A = ABDUCT(p_target, P) # extract a proposition that fixes (makes inductive) p_target
+      if A is None: return None
+      H = p_target
+      for p in A:
+        h_sol = h-houdini(p)
+        if h_sol is None: # break, keep iterating the while loop
+        H = H ^ h_sol
+      return H
+  ```
+]
+
+== H-Houdini: slicing and mining
+
+=== Slicing.
+
+#list(
+  marker: $triangle.r.small$,
+  [`SLICE(p_target)` extracts the variables that influence the inductivity of $p_"target"$],
+  [implemented by instrumenting the Lustre $->$ SMT translation],
+)
+
+#v(2em)
+
+=== Mining.
+
+#list(
+  marker: $triangle.r.small$,
+  [
+    `MINE(p_target, V)` generates invariants according to some templates
+  ],
+  [implemented by reusing functions for Houdini - not ideal as they do not take $p_"target"$ as an input and so subsequent sifting is performed],
+)
+
+== H-Houdini: abducting
+
+`ABDUCT(p_target, P)` returns `None` or a list of predicates $A$ derived from $P$ that fixes $p_"target"$: $A and p_"target" => p_"target" '$. If called multiple times, it returns a different abduct each time.
+
+#text(size: 0.85em)[
+  The paper proposes the following method:
+
+  $ and.big_i P_i and p_"target" and not p_"target" ' $
+  #v(-1em)
+  $
+    & mono("UNSAT"): "we extract a minimal unsat core" A \
+    & mono("SAT"): "no possible abduct using" P
+  $
+
+  But I fail to see how this method can generate several _different_ abducts.
+
+  Using SMT solvers:
+  #list(
+    marker: $triangle.r.small$,
+    [to the best of my knowledge, Z3 does not provide any builtin method],
+    [cvc5 has a builtin `getAbductNext()` method but no official OCaml bindings],
+  )
+
+  Also: Z3 `get_unsat_core` returns a list, but in practice it is only one element which is a big conjunct (not handy).
+
+  The implementation is currently bugged.
+]
+
+= Future work & conclusion
+
+== Future work & conclusion
+
+=== Future work
+
+"Minor" improvements for H-Houdini:
+- mining according to $p_"target"$
+- topological ordering of equations for slicing
+- memoization
+
+Major issue: abducting.
+
+=== Key insights
+
+- bottom-up vs top-down (property-directed) approaches
+- limited to templates (see IC3)
+- in real world: used as complement to other techniques
+- in real world: modular reasoning
 
 #pagebreak()
 
 #show: appendix
 
 #{
+  set heading(outlined: false)
   set align(top)
   set text(size: 0.7em)
   bibliography("bibliography.bib", title: "References")
@@ -400,18 +527,6 @@ In real-world projects (see #link("https://github.com/kind2-mc/kind2/discussions
 - ...
 
 This issue will *not* be addressed in the project.
-
-== Properties refering to $n$ and $n+1$ <nnpone>
-
-They require careful thinking:
-
-$
-  underbrace(Delta(n) and Delta(n+1), "do not constrain" x(n+2)) and P(n) => underbrace(P(n+1), "refers to" x(n+2)) ? " will fail, so still sound"
-$
-
-$=>$ strenghten our lhs with $Delta(n+2)$
-
-#link(<invgen>)[Go back.]
 
 == Positive examples for transition system
 
