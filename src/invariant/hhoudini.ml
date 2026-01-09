@@ -62,6 +62,12 @@ let mine ctx env v_slice p_target inputs (k : int) =
     instead of a list of simple expressions which would be better for us. *)
 let abduct ctx env p_target p_v =
   let solver = Solver.mk_solver ctx None in
+
+  (* Enabling minimal core generations *)
+  let params = Params.mk_params ctx in
+  Params.add_bool params (Symbol.mk_string ctx "core.minimize") true;
+  Solver.set_parameters solver params;
+
   let n = n_global ctx in
   let n_plus_1 = n_plus_1_global ctx in
   (* We load solver with the system equations *)
