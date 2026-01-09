@@ -41,8 +41,6 @@
 
 *Goal:* SMT-solver-agnostic model checker $=>$ use a frontend library $=>$ in OCaml: `Smt.ml` @smtml
 
-- Surprising behavior from `Smt.ml`, played with different solvers as well as the SMTLIB2 format directly #text(size: 0.55em, [(and was stuck in a dependency hell regarding `opam`, `z3`, `llvm`, `ld`, ...)])
-
 #sepa
 Aftermath of these initial experiments:
 
@@ -62,7 +60,7 @@ $=>$ Loustrini is _not_ solver-agnostic (using `Z3` @z3 - best would have been `
 
 == Encoding _à la_ k-induction
 
-Encoding presented in the handout.
+Encoding presented in the handout (from @scalingup).
 
 *$Delta(n)$* encodes the system equations at time $n$.
 
@@ -145,7 +143,7 @@ In real-world projects (see #link("https://github.com/kind2-mc/kind2/discussions
 
 This issue will *not* be addressed in the project.
 
-= Invariants learning algorithms, Houdini, H-Houdini
+= Invariant learning algorithms, Houdini, H-Houdini
 
 == Overview of invariant learning algorithms
 
@@ -276,13 +274,13 @@ ok = y >= 0;
 
 Not k-inductive!
 
-#v(1em)
+=== `ic_more.lus`
+
+Would fail with naive validation of candidates.
 
 === `fib.lus`
 
 With/without explicit state variables.
-
-#sepa
 
 Limitation: we cannot learn an invariant not present in the templates.
 
@@ -377,6 +375,7 @@ Major issue: abducting.
 
 === Key insights
 
+- Houdini works!
 - bottom-up vs top-down (property-directed) approaches
 - limited to templates (see IC3)
 - in real world: used as complement to other techniques
